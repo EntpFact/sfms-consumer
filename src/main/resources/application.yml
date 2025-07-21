@@ -1,0 +1,12 @@
+server:
+  port: ${port:8088}
+
+logging:
+  level:
+    root: ${loglevel:INFO}
+    #DEBUG
+
+
+topic:
+  nilrouter: ${NILTOPIC:nilrouter}
+  msgeventtracker: ${MSGTOPIC:MSGEVENTTRACKERTOPIC}
