@@ -28,6 +28,8 @@ public class PublishMessage {
             System.out.println(key);
 
             // Send to nil-router topic
+
+            System.out.println("xml : " + xml);
             kafkaUtils.publishToResponseTopic(xml, nilrouter, key);
             // Send to message-event-tracker-service topic
             kafkaUtils.publishToResponseTopic(xml, msgEventTracker, key);
@@ -35,6 +37,10 @@ public class PublishMessage {
 
         } catch (Exception e) {
             log.error(e.toString());
+
+            // Send to error message to nil-router / message-event-tracker-service topic
+            kafkaUtils.publishToResponseTopic(xml, nilrouter, "error");
+            kafkaUtils.publishToResponseTopic(xml, msgEventTracker, "error");
         }
     }
 

@@ -60,12 +60,12 @@ public class ProcessController {
                 String xmlString = validateXml(request);
 
                 // Check duplicate & Audit Incoming message
-                MsgEventTracker msgEventTracker = dedupCheck.checkDuplicate(xmlString);
+                //MsgEventTracker msgEventTracker = dedupCheck.checkDuplicate(xmlString);
 
                 // Process the XML message if duplicate is not found
-                if (msgEventTracker == null) {
+                //if (msgEventTracker == null) {
                     publishMessage.sendRequest(xmlString);
-                }
+               // }
 
                 return ResponseEntity.ok(new Response("SUCCESS", "Message Processed."));
             } catch (Exception ex) {
@@ -139,12 +139,12 @@ public class ProcessController {
                 //String xmlString = validateXml(request);
 
                 // Check duplicate & Audit Incoming message
-                MsgEventTracker msgEventTracker = dedupCheck.checkDuplicate(request);
+                //MsgEventTracker msgEventTracker = dedupCheck.checkDuplicate(request);
 
                 // Process the XML message if duplicate is not found
-                if (msgEventTracker == null) {
+               // if (msgEventTracker == null) {
                     publishMessage.sendRequest(request);
-                }
+                //}
 
                 return ResponseEntity.ok(new Response("SUCCESS", "Message Processed."));
             } catch (Exception ex) {
