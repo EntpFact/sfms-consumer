@@ -25,11 +25,11 @@ public class PublishMessage {
         try {
 
             String key = XmlFieldExtractor.extractFieldByFileType(xml);
-            System.out.println(key);
+
+            log.info("Key : {}", key);
+            log.info("Xml Message : " + xml);
 
             // Send to nil-router topic
-
-            System.out.println("xml : " + xml);
             kafkaUtils.publishToResponseTopic(xml, nilrouter, key);
             // Send to message-event-tracker-service topic
             kafkaUtils.publishToResponseTopic(xml, msgEventTracker, key);
