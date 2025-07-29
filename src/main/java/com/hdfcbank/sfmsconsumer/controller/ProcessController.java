@@ -8,6 +8,7 @@ import com.hdfcbank.sfmsconsumer.model.MsgEventTracker;
 import com.hdfcbank.sfmsconsumer.model.Response;
 import com.hdfcbank.sfmsconsumer.service.DedupCheck;
 import com.hdfcbank.sfmsconsumer.service.PublishMessage;
+import com.hdfcbank.sfmsconsumer.service.XmlSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -18,6 +19,7 @@ import reactor.core.publisher.Mono;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
@@ -64,8 +66,8 @@ public class ProcessController {
 
                 // Process the XML message if duplicate is not found
                 //if (msgEventTracker == null) {
-                    publishMessage.sendRequest(xmlString);
-               // }
+                publishMessage.sendRequest(xmlString);
+                // }
 
                 return ResponseEntity.ok(new Response("SUCCESS", "Message Processed."));
             } catch (Exception ex) {
@@ -105,6 +107,7 @@ public class ProcessController {
             // Convert Document to string using Transformer
             TransformerFactory transformerFactory = TransformerFactory.newInstance();
             Transformer transformer = transformerFactory.newTransformer();
+            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
             StringWriter writer = new StringWriter();
             StreamResult result = new StreamResult(writer);
             transformer.transform(new DOMSource(document), result);
@@ -135,15 +138,20 @@ public class ProcessController {
 
         return Mono.fromCallable(() -> {
             try {
+                //log.info("Request : {}",request);
                 // Get base64 encoded data
-                //String xmlString = validateXml(request);
+                String xmlString = validateXml(request);
+                String sanitizeReq = XmlSanitizer.sanitize(xmlString);
+
+                log.info("XmlSanitizer : {}", sanitizeReq);
+
 
                 // Check duplicate & Audit Incoming message
                 //MsgEventTracker msgEventTracker = dedupCheck.checkDuplicate(request);
 
                 // Process the XML message if duplicate is not found
-               // if (msgEventTracker == null) {
-                    publishMessage.sendRequest(request);
+                // if (msgEventTracker == null) {
+                publishMessage.sendRequest(sanitizeReq);
                 //}
 
                 return ResponseEntity.ok(new Response("SUCCESS", "Message Processed."));
