@@ -25,14 +25,17 @@ spring:
         enable.auto.commit: false
         missing.topics.fatal: false
 
-  datasource:
-    url: ${datasourceUrl:jdbc:postgresql://34.135.239.235:5432/postgresdb}
-    username: ${dbusername:admin}
-    password: ${password:test123}
-    driver-class-name: ${diverclassname:org.postgresql.Driver}
-
 topic:
   nilrouter: NILROUTER
   msgeventtracker: MSGEVENTTRACKERTOPIC
+
+file-type:
+  xpaths:
+    pacs.008.001.09: "(.//*[local-name()='RmtInf']//*[local-name()='Ustrd'])[1]"
+    pacs.004.001.10: "(.//*[local-name()='RmtInf']//*[local-name()='Ustrd'])[1]"
+    pacs.002.001.11: "(.//*[local-name()='StsRsnInf']//*[local-name()='AddtlInf'])[1]"
+    camt.052.001.08: ".//*[local-name()='GrpHdr']//*[local-name()='AddtInf']"
+    camt.054.001.08: ".//*[local-name()='GrpHdr']//*[local-name()='AddtInf']"
+
 
 

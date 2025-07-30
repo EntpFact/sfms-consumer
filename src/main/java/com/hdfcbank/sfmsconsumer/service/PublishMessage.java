@@ -20,27 +20,29 @@ public class PublishMessage {
     @Autowired
     KafkaUtils kafkaUtils;
 
-    public void sendRequest(String xml) {
+    @Autowired
+    BatchIdXmlFieldExtractor batchIdXmlFieldExtractor;
 
+    public void sendRequest(String xml[]) {
+        String xmlMessage = xml[0] + xml[1];
         try {
 
-            String key = XmlFieldExtractor.extractFieldByFileType(xml);
-
+            String key = batchIdXmlFieldExtractor.extractFieldByFileType(xml[1]);
             log.info("Key : {}", key);
-            log.info("Xml Message : " + xml);
+            log.info("Xml Message : " + xmlMessage);
 
             // Send to nil-router topic
-            kafkaUtils.publishToResponseTopic(xml, nilrouter, key);
+            kafkaUtils.publishToResponseTopic(xmlMessage, nilrouter, key);
             // Send to message-event-tracker-service topic
-            kafkaUtils.publishToResponseTopic(xml, msgEventTracker, key);
+            kafkaUtils.publishToResponseTopic(xmlMessage, msgEventTracker, key);
 
 
         } catch (Exception e) {
             log.error(e.toString());
 
             // Send to error message to nil-router / message-event-tracker-service topic
-            kafkaUtils.publishToResponseTopic(xml, nilrouter, "error");
-            kafkaUtils.publishToResponseTopic(xml, msgEventTracker, "error");
+            kafkaUtils.publishToResponseTopic(xmlMessage, nilrouter, "error");
+            kafkaUtils.publishToResponseTopic(xmlMessage, msgEventTracker, "error");
         }
     }
 
