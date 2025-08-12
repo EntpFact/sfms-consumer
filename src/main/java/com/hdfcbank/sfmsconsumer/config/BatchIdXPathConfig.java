@@ -20,6 +20,9 @@ public class BatchIdXPathConfig {
     }
 
     public String getXPathForFileType(String fileType) {
+        if (xpaths == null) {
+            return null;
+        }
         return xpaths.get(fileType);
     }
 }

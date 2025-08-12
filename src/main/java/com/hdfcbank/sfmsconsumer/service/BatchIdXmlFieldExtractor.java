@@ -38,11 +38,12 @@ public class BatchIdXmlFieldExtractor {
 
         if (msgDefIdr == null) {
             log.info("MsgDefIdr not found in XML.");
+            return null;
         }
 
         String targetXPath = batchIdXPathMap.getXPathForFileType(msgDefIdr.trim());
 
-        if (targetXPath == null) {
+        if (targetXPath == null || targetXPath.trim().isEmpty()) {
             // Log a warning or return null based on your use case
             log.info("Batch Id not present : {}", targetXPath);
             return null;
