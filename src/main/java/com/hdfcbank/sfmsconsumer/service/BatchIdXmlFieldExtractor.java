@@ -2,6 +2,7 @@ package com.hdfcbank.sfmsconsumer.service;
 
 import com.hdfcbank.sfmsconsumer.config.BatchIdXPathConfig;
 import com.hdfcbank.sfmsconsumer.utils.SfmsConsmrCommonUtility;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,14 +17,13 @@ import static com.hdfcbank.sfmsconsumer.utils.Constants.MSGDEFIDR_XPATH;
 
 @Slf4j
 @Service
+@AllArgsConstructor
 public class BatchIdXmlFieldExtractor {
 
-    private final BatchIdXPathConfig batchIdXPathMap;
-
     @Autowired
-    public BatchIdXmlFieldExtractor(BatchIdXPathConfig batchIdXPathMap) {
-        this.batchIdXPathMap = batchIdXPathMap;
-    }
+    private SfmsConsmrCommonUtility sfmsConsmrCommonUtility;
+
+    private final BatchIdXPathConfig batchIdXPathMap;
 
     private static Document toXmlDocument(String xmlString) throws Exception {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -34,7 +34,7 @@ public class BatchIdXmlFieldExtractor {
 
     public String extractFieldByFileType(String xmlString) throws Exception {
         Document document = toXmlDocument(xmlString);
-        String msgDefIdr = SfmsConsmrCommonUtility.getValueByXPath(document, MSGDEFIDR_XPATH);
+        String msgDefIdr = sfmsConsmrCommonUtility.getValueByXPath(document, MSGDEFIDR_XPATH);
 
         if (msgDefIdr == null) {
             log.info("MsgDefIdr not found in XML.");
@@ -49,7 +49,7 @@ public class BatchIdXmlFieldExtractor {
             return null;
         }
 
-        return SfmsConsmrCommonUtility.getValueByXPath(document, targetXPath);
+        return sfmsConsmrCommonUtility.getValueByXPath(document, targetXPath);
     }
 }
 

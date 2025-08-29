@@ -129,18 +129,18 @@ class SFMSExceptionTest {
         // Given
         String message = "Test error message";
         List<Fault> errors = Arrays.asList(
-            Fault.builder()
-                .errorType("VALIDATION_ERROR")
-                .responseStatusCode("400")
-                .errorCode("INVALID_INPUT")
-                .errorDescription("Invalid input provided")
-                .build(),
-            Fault.builder()
-                .errorType("PROCESSING_ERROR")
-                .responseStatusCode("500")
-                .errorCode("INTERNAL_ERROR")
-                .errorDescription("Internal processing error")
-                .build()
+                Fault.builder()
+                        .errorType("VALIDATION_ERROR")
+                        .responseStatusCode("400")
+                        .errorCode("INVALID_INPUT")
+                        .errorDescription("Invalid input provided")
+                        .build(),
+                Fault.builder()
+                        .errorType("PROCESSING_ERROR")
+                        .responseStatusCode("500")
+                        .errorCode("INTERNAL_ERROR")
+                        .errorDescription("Internal processing error")
+                        .build()
         );
 
         // When
@@ -159,12 +159,12 @@ class SFMSExceptionTest {
     void shouldCreateSFMSExceptionWithNullMessageAndErrors() {
         // Given
         List<Fault> errors = Arrays.asList(
-            Fault.builder()
-                .errorType("VALIDATION_ERROR")
-                .responseStatusCode("400")
-                .errorCode("INVALID_INPUT")
-                .errorDescription("Invalid input provided")
-                .build()
+                Fault.builder()
+                        .errorType("VALIDATION_ERROR")
+                        .responseStatusCode("400")
+                        .errorCode("INVALID_INPUT")
+                        .errorDescription("Invalid input provided")
+                        .build()
         );
 
         // When
@@ -218,12 +218,12 @@ class SFMSExceptionTest {
         // Given
         SFMSException exception = new SFMSException("Test message");
         List<Fault> errors = Arrays.asList(
-            Fault.builder()
-                .errorType("VALIDATION_ERROR")
-                .responseStatusCode("400")
-                .errorCode("INVALID_INPUT")
-                .errorDescription("Invalid input provided")
-                .build()
+                Fault.builder()
+                        .errorType("VALIDATION_ERROR")
+                        .responseStatusCode("400")
+                        .errorCode("INVALID_INPUT")
+                        .errorDescription("Invalid input provided")
+                        .build()
         );
 
         // When
@@ -240,12 +240,12 @@ class SFMSExceptionTest {
         // Given
         SFMSException exception = new SFMSException("Test message");
         List<Fault> initialErrors = Arrays.asList(
-            Fault.builder()
-                .errorType("VALIDATION_ERROR")
-                .responseStatusCode("400")
-                .errorCode("INVALID_INPUT")
-                .errorDescription("Invalid input provided")
-                .build()
+                Fault.builder()
+                        .errorType("VALIDATION_ERROR")
+                        .responseStatusCode("400")
+                        .errorCode("INVALID_INPUT")
+                        .errorDescription("Invalid input provided")
+                        .build()
         );
         exception.setErrors(initialErrors);
 
@@ -262,12 +262,12 @@ class SFMSExceptionTest {
         // Given
         SFMSException exception = new SFMSException("Test message");
         List<Fault> initialErrors = Arrays.asList(
-            Fault.builder()
-                .errorType("VALIDATION_ERROR")
-                .responseStatusCode("400")
-                .errorCode("INVALID_INPUT")
-                .errorDescription("Invalid input provided")
-                .build()
+                Fault.builder()
+                        .errorType("VALIDATION_ERROR")
+                        .responseStatusCode("400")
+                        .errorCode("INVALID_INPUT")
+                        .errorDescription("Invalid input provided")
+                        .build()
         );
         exception.setErrors(initialErrors);
 
@@ -286,24 +286,24 @@ class SFMSExceptionTest {
         // Given
         String message = "Multiple validation errors";
         List<Fault> errors = Arrays.asList(
-            Fault.builder()
-                .errorType("VALIDATION_ERROR")
-                .responseStatusCode("400")
-                .errorCode("INVALID_INPUT")
-                .errorDescription("Invalid input provided")
-                .build(),
-            Fault.builder()
-                .errorType("PROCESSING_ERROR")
-                .responseStatusCode("500")
-                .errorCode("INTERNAL_ERROR")
-                .errorDescription("Internal processing error")
-                .build(),
-            Fault.builder()
-                .errorType("AUTHORIZATION_ERROR")
-                .responseStatusCode("401")
-                .errorCode("UNAUTHORIZED")
-                .errorDescription("User not authorized")
-                .build()
+                Fault.builder()
+                        .errorType("VALIDATION_ERROR")
+                        .responseStatusCode("400")
+                        .errorCode("INVALID_INPUT")
+                        .errorDescription("Invalid input provided")
+                        .build(),
+                Fault.builder()
+                        .errorType("PROCESSING_ERROR")
+                        .responseStatusCode("500")
+                        .errorCode("INTERNAL_ERROR")
+                        .errorDescription("Internal processing error")
+                        .build(),
+                Fault.builder()
+                        .errorType("AUTHORIZATION_ERROR")
+                        .responseStatusCode("401")
+                        .errorCode("UNAUTHORIZED")
+                        .errorDescription("User not authorized")
+                        .build()
         );
 
         // When
@@ -314,20 +314,20 @@ class SFMSExceptionTest {
         assertEquals(message, exception.getMessage());
         assertEquals(errors, exception.getErrors());
         assertEquals(3, exception.getErrors().size());
-        
+
         // Verify individual faults
         Fault firstFault = exception.getErrors().get(0);
         assertEquals("VALIDATION_ERROR", firstFault.getErrorType());
         assertEquals("400", firstFault.getResponseStatusCode());
         assertEquals("INVALID_INPUT", firstFault.getErrorCode());
         assertEquals("Invalid input provided", firstFault.getErrorDescription());
-        
+
         Fault secondFault = exception.getErrors().get(1);
         assertEquals("PROCESSING_ERROR", secondFault.getErrorType());
         assertEquals("500", secondFault.getResponseStatusCode());
         assertEquals("INTERNAL_ERROR", secondFault.getErrorCode());
         assertEquals("Internal processing error", secondFault.getErrorDescription());
-        
+
         Fault thirdFault = exception.getErrors().get(2);
         assertEquals("AUTHORIZATION_ERROR", thirdFault.getErrorType());
         assertEquals("401", thirdFault.getResponseStatusCode());
@@ -341,12 +341,12 @@ class SFMSExceptionTest {
         // Given
         String message = "Test error message";
         List<Fault> errors = Arrays.asList(
-            Fault.builder()
-                .errorType(null)
-                .responseStatusCode(null)
-                .errorCode(null)
-                .errorDescription(null)
-                .build()
+                Fault.builder()
+                        .errorType(null)
+                        .responseStatusCode(null)
+                        .errorCode(null)
+                        .errorDescription(null)
+                        .build()
         );
 
         // When
@@ -357,7 +357,7 @@ class SFMSExceptionTest {
         assertEquals(message, exception.getMessage());
         assertEquals(errors, exception.getErrors());
         assertEquals(1, exception.getErrors().size());
-        
+
         Fault fault = exception.getErrors().get(0);
         assertNull(fault.getErrorType());
         assertNull(fault.getResponseStatusCode());
@@ -371,12 +371,12 @@ class SFMSExceptionTest {
         // Given
         String message = "Test error message";
         List<Fault> errors = Arrays.asList(
-            Fault.builder()
-                .errorType("")
-                .responseStatusCode("")
-                .errorCode("")
-                .errorDescription("")
-                .build()
+                Fault.builder()
+                        .errorType("")
+                        .responseStatusCode("")
+                        .errorCode("")
+                        .errorDescription("")
+                        .build()
         );
 
         // When
@@ -387,7 +387,7 @@ class SFMSExceptionTest {
         assertEquals(message, exception.getMessage());
         assertEquals(errors, exception.getErrors());
         assertEquals(1, exception.getErrors().size());
-        
+
         Fault fault = exception.getErrors().get(0);
         assertEquals("", fault.getErrorType());
         assertEquals("", fault.getResponseStatusCode());
@@ -501,7 +501,7 @@ class SFMSExceptionTest {
         assertNotNull(cause);
         assertEquals(runtimeException, cause);
         assertEquals("Runtime error", cause.getMessage());
-        
+
         assertNotNull(rootCause);
         assertEquals(illegalArgException, rootCause);
         assertEquals("Invalid argument", rootCause.getMessage());
@@ -514,12 +514,12 @@ class SFMSExceptionTest {
         String message = "Test error message";
         Throwable cause = new RuntimeException("Original cause");
         List<Fault> errors = Arrays.asList(
-            Fault.builder()
-                .errorType("VALIDATION_ERROR")
-                .responseStatusCode("400")
-                .errorCode("INVALID_INPUT")
-                .errorDescription("Invalid input provided")
-                .build()
+                Fault.builder()
+                        .errorType("VALIDATION_ERROR")
+                        .responseStatusCode("400")
+                        .errorCode("INVALID_INPUT")
+                        .errorDescription("Invalid input provided")
+                        .build()
         );
 
         // When

@@ -3,8 +3,9 @@ package com.hdfcbank.sfmsconsumer.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hdfcbank.sfmsconsumer.exception.SFMSException;
 import com.hdfcbank.sfmsconsumer.model.Response;
+import com.hdfcbank.sfmsconsumer.service.ErrXmlRoutingService;
+import com.hdfcbank.sfmsconsumer.service.IncomingMsgAudit;
 import com.hdfcbank.sfmsconsumer.service.PublishMessage;
 import com.hdfcbank.sfmsconsumer.service.XmlSanitizer;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayInputStream;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+
 import java.util.Base64;
 
 @Slf4j
@@ -33,6 +35,12 @@ public class ProcessController {
 
     @Autowired
     private PublishMessage publishMessage;
+
+    @Autowired
+    private IncomingMsgAudit incomingMsgAudit;
+
+    @Autowired
+    private ErrXmlRoutingService errorMsgAudit;
 
     @CrossOrigin
     @GetMapping(path = "/healthz")
@@ -56,13 +64,21 @@ public class ProcessController {
                 // Get base64 encoded data
                 String xmlString[] = validateXml(request);
 
-                publishMessage.sendRequest(xmlString);
 
+                if (xmlString != null && xmlString.length > 0) {
+
+                    incomingMsgAudit.auditIncomingMessage(xmlString);
+                    String sanitizeReq = XmlSanitizer.sanitize(xmlString[1]);
+                    xmlString[1] = sanitizeReq;
+                    log.info("XmlSanitizer : {}", sanitizeReq);
+                    publishMessage.sendRequest(xmlString);
+
+                }
 
                 return ResponseEntity.ok(new Response("SUCCESS", "Message Processed."));
             } catch (Exception ex) {
                 log.error("Failed in consuming the message: {}", ex);
-                throw new SFMSException("Failed in consuming the message", ex);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new Response("ERROR", "Message Processing Failed"));
             } finally {
                 log.info("....Processing Completed.... ");
             }
@@ -74,11 +90,15 @@ public class ProcessController {
 
     private String[] validateXml(String request) throws JsonProcessingException {
 
+
+
         ObjectMapper objectMapper = new ObjectMapper();
         JsonNode rootNode = objectMapper.readTree(request);
 
         String base64Data = rootNode.get("data_base64").asText();
         String xmlMsg = new String(Base64.getDecoder().decode(base64Data), StandardCharsets.UTF_8);
+
+
 
         String xmlMessage[] = null;
         // Remove BOM if exists and trim any extra whitespace
@@ -87,7 +107,7 @@ public class ProcessController {
         xmlMessage[1] = xmlMessage[1].trim();
 
         // Log the decoded XML message for debugging
-        log.info("Decoded XML: {}", xmlMessage);
+        // log.info("Decoded XML: {}", xmlMessage);
 
         // Now you can process the raw XML string
         String xmlString = "";  // String to store the converted XML
@@ -107,10 +127,11 @@ public class ProcessController {
 
             // Assign the XML as a string to the variable
             xmlString = writer.toString();
-            xmlMessage[1]=xmlString;
+            xmlMessage[1] = xmlString;
         } catch (Exception e) {
-            e.printStackTrace();
-            xmlString = "Error processing XML";  // If there's an error, assign an error message
+            errorMsgAudit.determineTopic(request);
+            log.error("Error Message received : {}", e.getMessage());
+            return null;  // If there's an error, assign an error message
         }
         return xmlMessage;
     }
@@ -121,14 +142,6 @@ public class ProcessController {
         // 1. Remove UTF-8 BOM if present
         if (xml.startsWith("\uFEFF")) {
             xml = xml.substring(1);
-        }
-
-        // 2. Only unescape if clearly escaped (Java-style)
-        if (xml.contains("\\\\n") || xml.contains("\\\\r") || xml.contains("\\\"")) {
-            xml = xml
-                    .replace("\\\\n", "\n")
-                    .replace("\\\\r", "\r")
-                    .replace("\\\"", "\"");
         }
 
         String[] parts = splitAtFirstTag(xml);
@@ -145,11 +158,11 @@ public class ProcessController {
         int index = message.indexOf('<');
         if (index == -1) {
             // No '<' found, return full message as junk, no XML
-            return new String[] { message, "" };
+            return new String[]{message, ""};
         }
         String before = message.substring(0, index);
         String after = message.substring(index);
-        return new String[] { before, after };
+        return new String[]{before, after};
     }
 
     @CrossOrigin
@@ -163,18 +176,21 @@ public class ProcessController {
                 //log.info("Request : {}",request);
                 // Get base64 encoded data
                 String xmlString[] = validateXml(request);
-                String sanitizeReq = XmlSanitizer.sanitize(xmlString[1]);
-                xmlString[1]=sanitizeReq;
-                log.info("XmlSanitizer : {}", sanitizeReq);
+                if (xmlString != null && xmlString.length > 0) {
 
-                publishMessage.sendRequest(xmlString);
+                    incomingMsgAudit.auditIncomingMessage(xmlString);
+                    String sanitizeReq = XmlSanitizer.sanitize(xmlString[1]);
+                    xmlString[1] = sanitizeReq;
+                    log.info("XmlSanitizer : {}", sanitizeReq);
 
 
+                    publishMessage.sendRequest(xmlString);
+
+                }
                 return ResponseEntity.ok(new Response("SUCCESS", "Message Processed."));
             } catch (Exception ex) {
                 log.error("Failed in consuming the message: {}", ex);
-
-                throw new SFMSException("Failed in consuming the message", ex);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new Response("ERROR", "Message Processing Failed"));
             } finally {
                 log.info("....Processing Completed.... ");
             }

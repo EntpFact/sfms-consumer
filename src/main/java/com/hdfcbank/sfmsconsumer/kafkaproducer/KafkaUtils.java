@@ -11,6 +11,9 @@ import reactor.core.publisher.Mono;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.hdfcbank.sfmsconsumer.utils.Constants.RAW_PAYLOAD;
+import static com.hdfcbank.sfmsconsumer.utils.Constants.TRUE;
+
 @Slf4j
 @Service
 public class KafkaUtils {
@@ -19,12 +22,10 @@ public class KafkaUtils {
     DaprProducer daprProducer;
 
 
-    public void publishToResponseTopic(String message, String topic, String key) {
+    public void publishToResponseTopic(String message, String topic) {
 
         Map<String, String> metadata = new HashMap<>();
-        metadata.put("rawPayload", "true");  // optional, for raw XML/string
-        metadata.put("key", key);
-
+        metadata.put(RAW_PAYLOAD, TRUE);  // optional, for raw XML/string
 
         var kafkaBinding = PubSubOptions.builder().requestData(message).topic(topic)
                 .pubsubName(Constants.KAFKA_RESPONSE_TOPIC_DAPR_BINDING)

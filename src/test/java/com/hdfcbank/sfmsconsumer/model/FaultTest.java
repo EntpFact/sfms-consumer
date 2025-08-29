@@ -273,13 +273,13 @@ class FaultTest {
     void shouldHandleDifferentErrorTypes() {
         // Given
         String[] errorTypes = {
-            "VALIDATION_ERROR",
-            "PROCESSING_ERROR",
-            "AUTHORIZATION_ERROR",
-            "NETWORK_ERROR",
-            "TIMEOUT_ERROR",
-            "RESOURCE_NOT_FOUND",
-            "INTERNAL_SERVER_ERROR"
+                "VALIDATION_ERROR",
+                "PROCESSING_ERROR",
+                "AUTHORIZATION_ERROR",
+                "NETWORK_ERROR",
+                "TIMEOUT_ERROR",
+                "RESOURCE_NOT_FOUND",
+                "INTERNAL_SERVER_ERROR"
         };
 
         // When & Then
@@ -297,7 +297,7 @@ class FaultTest {
     void shouldHandleDifferentHttpStatusCodes() {
         // Given
         String[] statusCodes = {
-            "200", "201", "400", "401", "403", "404", "500", "502", "503"
+                "200", "201", "400", "401", "403", "404", "500", "502", "503"
         };
 
         // When & Then
@@ -315,14 +315,14 @@ class FaultTest {
     void shouldHandleDifferentErrorCodes() {
         // Given
         String[] errorCodes = {
-            "INVALID_INPUT",
-            "MISSING_REQUIRED_FIELD",
-            "INVALID_FORMAT",
-            "VALUE_TOO_LONG",
-            "VALUE_TOO_SHORT",
-            "INVALID_DATE",
-            "INVALID_EMAIL",
-            "DUPLICATE_ENTRY"
+                "INVALID_INPUT",
+                "MISSING_REQUIRED_FIELD",
+                "INVALID_FORMAT",
+                "VALUE_TOO_LONG",
+                "VALUE_TOO_SHORT",
+                "INVALID_DATE",
+                "INVALID_EMAIL",
+                "DUPLICATE_ENTRY"
         };
 
         // When & Then
@@ -340,14 +340,14 @@ class FaultTest {
     void shouldHandleDifferentErrorDescriptions() {
         // Given
         String[] errorDescriptions = {
-            "Invalid input provided",
-            "Required field is missing",
-            "Invalid format for the provided data",
-            "Value exceeds maximum length",
-            "Value is below minimum length",
-            "Invalid date format",
-            "Invalid email format",
-            "Duplicate entry found"
+                "Invalid input provided",
+                "Required field is missing",
+                "Invalid format for the provided data",
+                "Value exceeds maximum length",
+                "Value is below minimum length",
+                "Invalid date format",
+                "Invalid email format",
+                "Duplicate entry found"
         };
 
         // When & Then

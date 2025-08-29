@@ -227,14 +227,14 @@ class ResponseTest {
     void shouldHandleDifferentStatusValues() {
         // Given
         String[] statuses = {
-            "SUCCESS",
-            "ERROR",
-            "PENDING",
-            "PROCESSING",
-            "COMPLETED",
-            "FAILED",
-            "TIMEOUT",
-            "CANCELLED"
+                "SUCCESS",
+                "ERROR",
+                "PENDING",
+                "PROCESSING",
+                "COMPLETED",
+                "FAILED",
+                "TIMEOUT",
+                "CANCELLED"
         };
 
         // When & Then
@@ -252,14 +252,14 @@ class ResponseTest {
     void shouldHandleDifferentMessageValues() {
         // Given
         String[] messages = {
-            "Message processed successfully",
-            "Message processing failed",
-            "Invalid input provided",
-            "Required field is missing",
-            "Processing timeout",
-            "Resource not found",
-            "Internal server error",
-            "Unauthorized access"
+                "Message processed successfully",
+                "Message processing failed",
+                "Invalid input provided",
+                "Required field is missing",
+                "Processing timeout",
+                "Resource not found",
+                "Internal server error",
+                "Unauthorized access"
         };
 
         // When & Then
@@ -581,7 +581,7 @@ class ResponseTest {
     void shouldHandleStatusCodeAsStrings() {
         // Given
         String[] statusCodes = {
-            "200", "201", "400", "401", "403", "404", "500", "502", "503"
+                "200", "201", "400", "401", "403", "404", "500", "502", "503"
         };
 
         // When & Then
