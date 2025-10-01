@@ -7,6 +7,62 @@ logging:
     #DEBUG
 
 
-topic:
-  nilrouter: ${NILTOPIC:nilrouter}
-  msgeventtracker: ${MSGTOPIC:MSGEVENTTRACKERTOPIC}
+spring:
+  kafka:
+    listener:
+      concurrency: 1
+    consumer:
+      properties:
+        bootstrap.servers: 20.192.24.194:39092 #FYNDNA KAFKA
+        #34.28.251.45:9092
+        auto.offset.reset: earliest
+        key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+        value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+        group.id: neft-il-consumer
+    producer:
+      properties:
+        bootstrap.servers: 20.192.24.194:39092  #FYNDNA KAFKA
+        #34.28.251.45:9092
+        key.serializer: org.apache.kafka.common.serialization.StringSerializer
+        value.serializer: org.apache.kafka.common.serialization.StringSerializer
+        enable.auto.commit: false
+        missing.topics.fatal: false
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://34.135.239.235:5432/postgresdb}
+    username: ${DATABASE_USERNAME:admin}
+    password: ${DATABASE_PWD:test123}
+    driver-class-name: ${DATABASE_DRIVERCLASS:org.postgresql.Driver}
+
+file-type:
+  processor:
+    pacs.008.001.09: ${PACS008PROCESSOR:pacs008Processor}
+    pacs.004.001.10: ${PACS004PROCESSOR:pacs004Processor}
+    pacs.002.001.11: ${PACS002PROCESSOR:pacs002Processor}
+    camt.052.001.08: ${CAMT5254PROCESSOR:camt5254Processor}
+    camt.054.001.08: ${CAMT5254PROCESSOR:camt5254Processor}
+    camt.059.001.06: ${CAMT59PROCESSOR:camt59Processor}
+    admi.004.001.01: ${ADMI004PROCESSOR:admi004Processor}
+    admi.004.001.02: ${ADMI004PROCESSOR:admi004Processor}
+
+  topic:
+    pacs008Processor: ${PACS008TOPIC:neftil-pacs008-topic}
+    pacs004Processor: ${PACS004TOPIC:neftil-pacs004-topic}
+    pacs002Processor: ${PACS002TOPIC:neftil-pacs002-topic}
+    camt5254Processor: ${CAMT5254TOPIC:neftil-camt5254-topic}
+    camt59Processor: ${CAMT59TOPIC:neftil-camt59-topic}
+    admi004Processor: ${ADMI004TOPIC:neftil-admi004-topic}
+
+  xpaths:
+    pacs.008.001.09: ${BATCHID_XPATH_PACS008:(.//*[local-name()='RmtInf']//*[local-name()='Ustrd'])[1]}
+    pacs.004.001.10: ${BATCHID_XPATH_PACS004:(.//*[local-name()='RmtInf']//*[local-name()='Ustrd'])[1]}
+    pacs.002.001.11: ${BATCHID_XPATH_PACS002:(.//*[local-name()='StsRsnInf']//*[local-name()='AddtlInf'])[1]}
+    camt.052.001.08: ${BATCHID_XPATH_CAMT052:.//*[local-name()='GrpHdr']//*[local-name()='AddtlInf']}
+    camt.054.001.08: ${BATCHID_XPATH_CAMT054:.//*[local-name()='GrpHdr']//*[local-name()='AddtlInf']}
+
+
+batch-tracker:
+  allowedMsgTypes:
+    - ${BT_PACS008:pacs.008.001.09}
+    - ${BT_PACS002:pacs.002.001.11}
+    - ${BT_CAMT054:camt.054.001.08}

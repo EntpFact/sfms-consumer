@@ -26,6 +26,7 @@ public class KafkaUtils {
 
         Map<String, String> metadata = new HashMap<>();
         metadata.put(RAW_PAYLOAD, TRUE);  // optional, for raw XML/string
+        metadata.put("partitionKey","123");
 
         var kafkaBinding = PubSubOptions.builder().requestData(message).topic(topic)
                 .pubsubName(Constants.KAFKA_RESPONSE_TOPIC_DAPR_BINDING)

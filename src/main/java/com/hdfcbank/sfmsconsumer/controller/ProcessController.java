@@ -14,19 +14,23 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.w3c.dom.Document;
+import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
+import org.xml.sax.helpers.DefaultHandler;
 import reactor.core.publisher.Mono;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
-
 import java.util.Base64;
 
 @Slf4j
@@ -44,158 +48,136 @@ public class ProcessController {
 
     @CrossOrigin
     @GetMapping(path = "/healthz")
-    public ResponseEntity<?> healthz() {
-        return new ResponseEntity<>("Success", HttpStatus.OK);
+    public ResponseEntity<String> healthz() {
+        return ResponseEntity.ok("Success");
     }
 
     @CrossOrigin
     @GetMapping(path = "/ready")
-    public ResponseEntity<?> ready() {
-        return new ResponseEntity<>("Success", HttpStatus.OK);
+    public ResponseEntity<String> ready() {
+        return ResponseEntity.ok("Success");
+    }
+
+    @CrossOrigin
+    @PostMapping("/process")
+    public Mono<ResponseEntity<Response>> process(@RequestBody String request) {
+        log.info("....Processing Started....");
+
+        return Mono.fromCallable(() -> validateXml(request))
+                .flatMap(xmlString -> {
+                    // If XML is valid
+                    if (xmlString != null && xmlString.length > 1 && !xmlString[1].isBlank()) {
+                        incomingMsgAudit.auditIncomingMessage(xmlString);
+
+                        String sanitized = XmlSanitizer.sanitize(xmlString[1]);
+                        xmlString[1] = sanitized;
+                        log.info("XmlSanitizer output : {}", sanitized);
+
+                        publishMessage.sendRequest(xmlString);
+                    }
+                    return Mono.just(ResponseEntity.ok(new Response("SUCCESS", "Message Processed.")));
+                })
+                .onErrorResume(ex -> {
+
+                    log.error("XML Parsing Failed: {}", ex.getMessage(), ex);
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body(new Response("ERROR", "Message Processing Failed")));
+                })
+                .doFinally(signalType -> log.info("....Processing Completed...."));
     }
 
 
     @CrossOrigin
-    @PostMapping("/process")
-    public Mono<ResponseEntity<Response>> process(@RequestBody String request) throws JsonProcessingException {
-        log.info("....Processing Started.... ");
+    @PostMapping("/testProcess")
+    public Mono<ResponseEntity<Response>> testProcess(@RequestBody String request) {
+        log.info("....Processing Started....");
         return Mono.fromCallable(() -> {
             try {
-                // Get base64 encoded data
-                String xmlString[] = validateXml(request);
+                log.info("Test request : {}", request);
+                String[] xmlString = validateXml(request);
 
-
-                if (xmlString != null && xmlString.length > 0) {
-
+                if (xmlString != null && xmlString.length > 1 && !xmlString[1].isBlank()) {
                     incomingMsgAudit.auditIncomingMessage(xmlString);
-                    String sanitizeReq = XmlSanitizer.sanitize(xmlString[1]);
-                    xmlString[1] = sanitizeReq;
-                    log.info("XmlSanitizer : {}", sanitizeReq);
-                    publishMessage.sendRequest(xmlString);
 
+                    String sanitized = XmlSanitizer.sanitize(xmlString[1]);
+                    xmlString[1] = sanitized;
+                    log.info("XmlSanitizer output : {}", sanitized);
+                    publishMessage.sendRequest(xmlString);
                 }
 
                 return ResponseEntity.ok(new Response("SUCCESS", "Message Processed."));
             } catch (Exception ex) {
-                log.error("Failed in consuming the message: {}", ex);
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new Response("ERROR", "Message Processing Failed"));
+                log.error("Failed in consuming the test message: {}", ex.getMessage(), ex);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                        .body(new Response("ERROR", "Message Processing Failed"));
             } finally {
-                log.info("....Processing Completed.... ");
+                log.info("....Processing Completed....");
             }
         }).onErrorResume(ex -> {
-            return Mono.just(new ResponseEntity<>(new Response("ERROR", "Message Processing Failed"), HttpStatus.INTERNAL_SERVER_ERROR));
+            return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new Response("ERROR", "Message Processing Failed")));
         });
     }
 
-
-    private String[] validateXml(String request) throws JsonProcessingException {
-
-
-
-        ObjectMapper objectMapper = new ObjectMapper();
-        JsonNode rootNode = objectMapper.readTree(request);
-
-        String base64Data = rootNode.get("data_base64").asText();
-        String xmlMsg = new String(Base64.getDecoder().decode(base64Data), StandardCharsets.UTF_8);
-
-
-
-        String xmlMessage[] = null;
-        // Remove BOM if exists and trim any extra whitespace
-        xmlMessage = removeBOM(xmlMsg);
-        xmlMessage[0] = xmlMessage[0].trim();
-        xmlMessage[1] = xmlMessage[1].trim();
-
-        // Log the decoded XML message for debugging
-        // log.info("Decoded XML: {}", xmlMessage);
-
-        // Now you can process the raw XML string
-        String xmlString = "";  // String to store the converted XML
+    private String[] validateXml(String request)  {
+        String xmlMsg =null;
         try {
-            // Parse the XML string to a Document
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode rootNode = objectMapper.readTree(request);
+
+            String base64Data = rootNode.get("data_base64").asText();
+            xmlMsg = new String(Base64.getDecoder().decode(base64Data), StandardCharsets.UTF_8);
+
+            // Remove BOM safely
+            String[] xmlMessage = removeBOM(xmlMsg);
+            xmlMessage[0] = xmlMessage[0].trim();
+            xmlMessage[1] = xmlMessage[1].trim();
+
+            // Parse XML securely
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            factory.setNamespaceAware(true);
             DocumentBuilder builder = factory.newDocumentBuilder();
-            Document document = builder.parse(new ByteArrayInputStream(xmlMessage[1].getBytes()));
+            builder.setErrorHandler(new DefaultHandler() {
+                @Override
+                public void error(SAXParseException e) throws SAXException { throw e; }
+                @Override
+                public void fatalError(SAXParseException e) throws SAXException { throw e; }
+                @Override
+                public void warning(SAXParseException e) throws SAXException { throw e; }
+            });
 
-            // Convert Document to string using Transformer
-            TransformerFactory transformerFactory = TransformerFactory.newInstance();
-            Transformer transformer = transformerFactory.newTransformer();
-            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
-            StringWriter writer = new StringWriter();
-            StreamResult result = new StreamResult(writer);
-            transformer.transform(new DOMSource(document), result);
+            builder.parse(new ByteArrayInputStream(xmlMessage[1].getBytes(StandardCharsets.UTF_8)));
 
-            // Assign the XML as a string to the variable
-            xmlString = writer.toString();
-            xmlMessage[1] = xmlString;
-        } catch (Exception e) {
-            errorMsgAudit.determineTopic(request);
-            log.error("Error Message received : {}", e.getMessage());
-            return null;  // If there's an error, assign an error message
+            return xmlMessage;
+        }catch (SAXException | IOException | ParserConfigurationException e ) {
+            // If XML parsing fails
+            log.info("Calling determineTopic due to XML error");
+            try {
+                errorMsgAudit.determineTopic(xmlMsg);
+            } catch (Exception dtEx) {
+                log.error("determineTopic() failed: {}", dtEx.getMessage(), dtEx);
+            };
+            return null;
         }
-        return xmlMessage;
+
     }
+
 
     public static String[] removeBOM(String xml) {
         if (xml == null) return null;
-
-        // 1. Remove UTF-8 BOM if present
         if (xml.startsWith("\uFEFF")) {
             xml = xml.substring(1);
         }
-
-        String[] parts = splitAtFirstTag(xml);
-
-        return parts;
+        return splitAtFirstTag(xml);
     }
 
-    /**
-     * Splits the input string into two parts:
-     * 1. Junk before the first `<`
-     * 2. Valid XML starting with `<`
-     */
     public static String[] splitAtFirstTag(String message) {
         int index = message.indexOf('<');
         if (index == -1) {
-            // No '<' found, return full message as junk, no XML
             return new String[]{message, ""};
         }
         String before = message.substring(0, index);
         String after = message.substring(index);
         return new String[]{before, after};
-    }
-
-    @CrossOrigin
-    @PostMapping("/testProcess")
-    public Mono<ResponseEntity<Response>> testProcess(@RequestBody String request) throws JsonProcessingException {
-
-        log.info("....Processing Started.... ");
-
-        return Mono.fromCallable(() -> {
-            try {
-                //log.info("Request : {}",request);
-                // Get base64 encoded data
-                String xmlString[] = validateXml(request);
-                if (xmlString != null && xmlString.length > 0) {
-
-                    incomingMsgAudit.auditIncomingMessage(xmlString);
-                    String sanitizeReq = XmlSanitizer.sanitize(xmlString[1]);
-                    xmlString[1] = sanitizeReq;
-                    log.info("XmlSanitizer : {}", sanitizeReq);
-
-
-                    publishMessage.sendRequest(xmlString);
-
-                }
-                return ResponseEntity.ok(new Response("SUCCESS", "Message Processed."));
-            } catch (Exception ex) {
-                log.error("Failed in consuming the message: {}", ex);
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new Response("ERROR", "Message Processing Failed"));
-            } finally {
-                log.info("....Processing Completed.... ");
-            }
-        }).onErrorResume(ex -> {
-            return Mono.just(new ResponseEntity<>(new Response("ERROR", "Message Processing Failed"), HttpStatus.INTERNAL_SERVER_ERROR));
-        });
     }
 }

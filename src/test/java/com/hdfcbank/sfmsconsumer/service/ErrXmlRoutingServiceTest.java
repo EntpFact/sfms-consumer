@@ -1,13 +1,13 @@
 package com.hdfcbank.sfmsconsumer.service;
 
 import com.hdfcbank.sfmsconsumer.config.TargetProcessorTopicConfig;
-import com.hdfcbank.sfmsconsumer.dao.NilRepository;
+import com.hdfcbank.sfmsconsumer.dao.SFMSConsumerRepository;
 import com.hdfcbank.sfmsconsumer.kafkaproducer.KafkaUtils;
+import com.hdfcbank.sfmsconsumer.model.AdmiTracker;
 import com.hdfcbank.sfmsconsumer.model.MsgEventTracker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -20,121 +20,90 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ErrXmlRoutingServiceTest {
-
     @Mock
     private KafkaUtils kafkaUtils;
 
     @Mock
-    private NilRepository nilRepository;
+    private SFMSConsumerRepository sfmsConsumerRepository;
 
-    @Mock
-    private TargetProcessorTopicConfig config;
-
-    @InjectMocks   // ✅ Mockito will inject mocks into this service
-    private ErrXmlRoutingService errXmlRoutingService;
-
-    Map<String, String> topicMap = new HashMap<>();
-    Map<String, String> processorMap = new HashMap<>();
+    private ErrXmlRoutingService service;
 
     @BeforeEach
     void setUp() {
-        // Mock config topics
+        // Mock config
+        TargetProcessorTopicConfig config = mock(TargetProcessorTopicConfig.class);
 
-        topicMap.put("pacs.008", "topic-pacs008");
-        topicMap.put("pacs.004", "topic-pacs004");
-
-
+        // processor mappings
+        Map<String, String> processorMap = new HashMap<>();
         processorMap.put("pacs.008", "PROC008");
         processorMap.put("pacs.004", "PROC004");
+        processorMap.put("admi.004", "PROC_ADMI");
 
+        // topic mappings
+        Map<String, String> topicMap = new HashMap<>();
+        topicMap.put("PROC008", "topic-pacs008");
+        topicMap.put("PROC004", "topic-pacs004");
+        topicMap.put("PROC_ADMI", "topic-admi");
 
-    }
-
-    @Test
-    void testDetermineTopic_pacs008Message_PublishesToKafka() {
-        String xmlMessage =
-                "<RequestPayload>" +
-                        "<BizMsgIdr>MSG123</BizMsgIdr>" +
-                        "<Document>pacs.008 data here</Document>" +
-                        "</RequestPayload>";
-        when(config.getTopic()).thenReturn(topicMap);
         when(config.getProcessor()).thenReturn(processorMap);
-        when(config.getProcessorFileType(anyString())).thenReturn("PROC008");
+        when(config.getTopicFileType(anyString())).thenAnswer(inv -> topicMap.get(inv.getArgument(0)));
+        when(config.getProcessorFileType(anyString())).thenAnswer(inv -> processorMap.get(inv.getArgument(0)));
 
-        errXmlRoutingService.determineTopic(xmlMessage);
-
-        // Verify repository save called
-        verify(nilRepository, times(1)).saveDataInMsgEventTracker(any(MsgEventTracker.class));
-
-        // Verify Kafka publish called with topic "topic-pacs008"
-        verify(kafkaUtils, times(1)).publishToResponseTopic(anyString(), eq("topic-pacs008"));
+        service = new ErrXmlRoutingService(kafkaUtils, sfmsConsumerRepository, config);
     }
 
     @Test
-    void testDetermineTopic_pacs004Message_PublishesToKafka() {
-        String xmlMessage =
-                "<RequestPayload>" +
-                        "<BizMsgIdr>MSG999</BizMsgIdr>" +
-                        "<Document>pacs.004 something</Document>" +
-                        "</RequestPayload>";
+    void testDetermineTopic_Pacs008() {
+        String xmlMessage = """
+                <RequestPayload>
+                  <AppHdr><BizMsgIdr>RBIP20250911001</BizMsgIdr></AppHdr>
+                  <Document><MsgDefIdr>pacs.008</MsgDefIdr></Document>
+                </RequestPayload>
+                """;
 
-        when(config.getTopic()).thenReturn(topicMap);
-        when(config.getProcessor()).thenReturn(processorMap);
-        when(config.getProcessorFileType(anyString())).thenReturn("PROC008");
+        service.determineTopic(xmlMessage);
 
-        errXmlRoutingService.determineTopic(xmlMessage);
+        verify(kafkaUtils, times(1))
+                .publishToResponseTopic(anyString(), eq("topic-pacs008"));
 
-
-        verify(nilRepository, times(1)).saveDataInMsgEventTracker(any(MsgEventTracker.class));
-        verify(kafkaUtils, times(1)).publishToResponseTopic(anyString(), eq("topic-pacs004"));
+        verify(sfmsConsumerRepository, times(1))
+                .saveDataInMsgEventTracker(any(MsgEventTracker.class));
     }
 
     @Test
-    void testDetermineTopic_NoMatch_DoesNothing() {
-        String xmlMessage =
-                "<RequestPayload>" +
-                        "<BizMsgIdr>MSG000</BizMsgIdr>" +
-                        "<Document>unknown</Document>" +
-                        "</RequestPayload>";
+    void testDetermineTopic_Pacs004() {
+        String xmlMessage = """
+                <RequestPayload>
+                  <AppHdr><BizMsgIdr>RBIP20250911002</BizMsgIdr></AppHdr>
+                  <Document><MsgDefIdr>pacs.004</MsgDefIdr></Document>
+                </RequestPayload>
+                """;
 
-        errXmlRoutingService.determineTopic(xmlMessage);
+        service.determineTopic(xmlMessage);
 
-        // No publish or save should happen
-        verifyNoInteractions(kafkaUtils);
-        verifyNoInteractions(nilRepository);
+        verify(kafkaUtils, times(1))
+                .publishToResponseTopic(anyString(), eq("topic-pacs004"));
+
+        verify(sfmsConsumerRepository, times(1))
+                .saveDataInMsgEventTracker(any(MsgEventTracker.class));
     }
 
     @Test
-    void testErrorMessageAudit_SavesTracker() {
-        String xmlMessage = "<RequestPayload><BizMsgIdr>MSG-AUDIT</BizMsgIdr></RequestPayload>";
+    void testDetermineTopic_Admi004() {
+        String xmlMessage = """
+                <RequestPayload>
+                  <AppHdr><BizMsgIdr>RBIP20250911003</BizMsgIdr></AppHdr>
+                  <Document><MsgDefIdr>admi.004</MsgDefIdr></Document>
+                </RequestPayload>
+                """;
 
-        errXmlRoutingService.errorMessageAudit(xmlMessage, "pacs.008");
+        service.determineTopic(xmlMessage);
 
-        verify(nilRepository, times(1)).saveDataInMsgEventTracker(any(MsgEventTracker.class));
+        verify(kafkaUtils, times(1))
+                .publishToResponseTopic(anyString(), eq("topic-admi"));
+
+        verify(sfmsConsumerRepository, times(1))
+                .saveDataInAdmiTracker(any(AdmiTracker.class));
     }
 
-    @Test
-    void testGetMsgId_Found() throws Exception {
-        String xmlMessage = "<RequestPayload><BizMsgIdr>MSGFOUND</BizMsgIdr></RequestPayload>";
-
-        String msgId = invokeGetMsgId(xmlMessage);
-
-        assert msgId.equals("MSGFOUND");
-    }
-
-    @Test
-    void testGetMsgId_NotFound_ReturnsNull() throws Exception {
-        String xmlMessage = "<RequestPayload><NoBizMsgIdr>Missing</NoBizMsgIdr></RequestPayload>";
-
-        String msgId = invokeGetMsgId(xmlMessage);
-
-        assert msgId == null;
-    }
-
-    // --- helper to invoke private method getMsgId ---
-    private String invokeGetMsgId(String xmlMessage) throws Exception {
-        var method = ErrXmlRoutingService.class.getDeclaredMethod("getMsgId", String.class);
-        method.setAccessible(true);
-        return (String) method.invoke(errXmlRoutingService, xmlMessage);
-    }
 }

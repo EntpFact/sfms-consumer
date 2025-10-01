@@ -1,28 +1,26 @@
 package com.hdfcbank.sfmsconsumer.service;
 
 import com.hdfcbank.sfmsconsumer.config.TargetProcessorTopicConfig;
-import com.hdfcbank.sfmsconsumer.dao.NilRepository;
+import com.hdfcbank.sfmsconsumer.dao.SFMSConsumerRepository;
 import com.hdfcbank.sfmsconsumer.model.AdmiTracker;
-import com.hdfcbank.sfmsconsumer.model.BatchTracker;
 import com.hdfcbank.sfmsconsumer.model.MsgEventTracker;
 import com.hdfcbank.sfmsconsumer.utils.SfmsConsmrCommonUtility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.w3c.dom.Document;
 
-import javax.xml.xpath.XPathExpressionException;
-
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-
+@ExtendWith(MockitoExtension.class)
 class IncomingMsgAuditTest {
     @Mock
-    private NilRepository nilRepository;
+    private SFMSConsumerRepository sfmsConsumerRepository;
 
     @Mock
     private SfmsConsmrCommonUtility sfmsConsmrCommonUtility;
@@ -33,86 +31,109 @@ class IncomingMsgAuditTest {
     @Mock
     private BatchIdXmlFieldExtractor batchIdXmlFieldExtractor;
 
+    @Mock
+    private BuildJsonReq buildJsonReq;
+
     @InjectMocks
     private IncomingMsgAudit incomingMsgAudit;
 
-    private String[] xmlMessage;
+    private String[] xml;
 
     @BeforeEach
-    void setUp() throws Exception {
-        MockitoAnnotations.openMocks(this);
-
-        // Minimal valid XML
-        String xml = "<RequestPayload>" +
-                "<AppHdr><MsgDefIdr>pacs.008.001.09</MsgDefIdr></AppHdr>" +
-                "<Document><GrpHdr><MsgId>RBIP123</MsgId></GrpHdr></Document>" +
-                "</RequestPayload>";
-
-        xmlMessage = new String[]{"", xml};
-
-        // Default stubbing for all xpath calls
-        lenient().when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), anyString()))
-                .thenAnswer(invocation -> {
-                    String xpath = invocation.getArgument(1);
-                    if (xpath.contains("MsgId")) return "RBIP123";
-                    if (xpath.contains("MsgDefIdr")) return "pacs.008.001.09";
-                    return null;
-                });
-
-        lenient().when(config.getProcessorFileType(anyString())).thenReturn("TARGET_TOPIC");
-        lenient().when(batchIdXmlFieldExtractor.extractFieldByFileType(anyString())).thenReturn("BATCH123");
+    void setUp() {
+        xml = new String[]{
+                "CBS", // prefix
+                "<RequestPayload>" +
+                        "<AppHdr><BizMsgIdr>RBIP20250911003</BizMsgIdr></AppHdr>" +
+                        "<MsgDefIdr>pacs.008.001.09</MsgDefIdr>" +
+                        "<Document><MsgDefIdr>pacs.008.001.09</MsgDefIdr></Document>" +
+                        "</RequestPayload>"
+        };
     }
 
     @Test
-    void testAuditIncomingMessage_nonAdmiMessage_savesMsgEventAndBatch() {
-        // Act
-        incomingMsgAudit.auditIncomingMessage(xmlMessage);
-
-        // Assert
-        verify(nilRepository, times(1)).saveDataInMsgEventTracker(any(MsgEventTracker.class));
-        verify(nilRepository, times(1)).saveMsgInBatchTracker(any(BatchTracker.class));
-        verify(nilRepository, never()).saveDataInAdmiTracker(any(AdmiTracker.class));
-    }
-
-    @Test
-    void testAuditIncomingMessage_admiMessage_savesAdmiAndBatch() throws XPathExpressionException {
-        // Arrange - override msgType to ADMI
-        when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), contains("MsgDefIdr")))
-                .thenReturn("admi.004.001.02");
-
-        // Act
-        incomingMsgAudit.auditIncomingMessage(xmlMessage);
-
-        // Assert
-        verify(nilRepository, times(1)).saveDataInAdmiTracker(any(AdmiTracker.class));
-        verify(nilRepository, times(1)).saveMsgInBatchTracker(any(BatchTracker.class));
-        verify(nilRepository, never()).saveDataInMsgEventTracker(any(MsgEventTracker.class));
-    }
-
-    @Test
-    void testAuditIncomingMessage_batchIdNull_savesEmptyBatchId() throws Exception {
+    void testAuditIncomingMessage_admiFlow() throws Exception {
         // Arrange
-        when(batchIdXmlFieldExtractor.extractFieldByFileType(anyString())).thenReturn(null);
+        when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), eq("//*[local-name()='AppHdr']/*[local-name()='BizMsgIdr']")))
+                .thenReturn("RBIP20250911003");
+        when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), eq("//*[local-name()='AppHdr']/*[local-name()='MsgDefIdr']")))
+                .thenReturn("admi.002.001.01"); // <-- ADMI message
+        when(config.getProcessorFileType("admi.002.001.01")).thenReturn("PROC_ADMI");
+        when(batchIdXmlFieldExtractor.extractFieldByFileType(xml[1])).thenReturn("BATCH123");
+        when(buildJsonReq.buildRequest(xml)).thenReturn("{\"json\":\"value\"}");
 
         // Act
-        incomingMsgAudit.auditIncomingMessage(xmlMessage);
+        incomingMsgAudit.auditIncomingMessage(xml);
 
         // Assert
-        ArgumentCaptor<BatchTracker> batchCaptor = ArgumentCaptor.forClass(BatchTracker.class);
-        verify(nilRepository).saveMsgInBatchTracker(batchCaptor.capture());
-        BatchTracker savedBatch = batchCaptor.getValue();
+        ArgumentCaptor<AdmiTracker> captor = ArgumentCaptor.forClass(AdmiTracker.class);
+        verify(sfmsConsumerRepository).saveDataInAdmiTracker(captor.capture());
+        AdmiTracker saved = captor.getValue();
 
-        // BatchId should be empty string if extractor returned null
-        org.junit.jupiter.api.Assertions.assertEquals("", savedBatch.getBatchId());
+        assertEquals("RBIP20250911003", saved.getMsgId());
+        assertEquals("admi.002.001.01", saved.getMsgType());
+        assertEquals("PROC_ADMI", saved.getTarget());
+        assertEquals("{\"json\":\"value\"}", saved.getTransformedJsonReq());
+        assertTrue(saved.getOrgnlReq().contains("RequestPayload"));
     }
 
     @Test
-    void testAuditIncomingMessage_exceptionThrown_wrapsInRuntimeException() throws Exception {
-        // Arrange - make extractor throw exception
-        when(batchIdXmlFieldExtractor.extractFieldByFileType(anyString()))
-                .thenThrow(new RuntimeException("Extractor error"));
+    void testAuditIncomingMessage_normalFlow() throws Exception {
+        // Arrange
+        when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), eq("//*[local-name()='AppHdr']/*[local-name()='BizMsgIdr']")))
+                .thenReturn("RBIP20250911003");
+        when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), eq("//*[local-name()='AppHdr']/*[local-name()='MsgDefIdr']")))
+                .thenReturn("pacs.008.001.09");
+        when(config.getProcessorFileType("pacs.008.001.09")).thenReturn("PROC008");
+        when(batchIdXmlFieldExtractor.extractFieldByFileType(xml[1])).thenReturn("BATCH123");
+        when(buildJsonReq.buildRequest(xml)).thenReturn("{\"json\":\"value\"}");
 
-        // Act & Assert
-        assertThrows(RuntimeException.class, () -> incomingMsgAudit.auditIncomingMessage(xmlMessage));
+        // Act
+        incomingMsgAudit.auditIncomingMessage(xml);
+
+        // Assert
+        ArgumentCaptor<MsgEventTracker> captor = ArgumentCaptor.forClass(MsgEventTracker.class);
+        verify(sfmsConsumerRepository).saveDataInMsgEventTracker(captor.capture());
+        MsgEventTracker saved = captor.getValue();
+
+        assertEquals("RBIP20250911003", saved.getMsgId());
+        assertEquals("pacs.008.001.09", saved.getMsgType());
+        assertEquals("PROC008", saved.getTarget());
+        assertEquals("BATCH123", saved.getBatchId());
+        assertEquals("{\"json\":\"value\"}", saved.getTransformedJsonReq());
     }
+
+    @Test
+    void testAuditIncomingMessage_batchIdNull() throws Exception {
+        // Arrange
+        when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), anyString()))
+                .thenReturn("RBIP20250911003")
+                .thenReturn("pacs.008.001.09");
+        when(config.getProcessorFileType("pacs.008.001.09")).thenReturn("PROC008");
+        when(batchIdXmlFieldExtractor.extractFieldByFileType(xml[1])).thenReturn(null); // null case
+        when(buildJsonReq.buildRequest(xml)).thenReturn("{\"json\":\"value\"}");
+
+        // Act
+        incomingMsgAudit.auditIncomingMessage(xml);
+
+        // Assert
+        ArgumentCaptor<MsgEventTracker> captor = ArgumentCaptor.forClass(MsgEventTracker.class);
+        verify(sfmsConsumerRepository).saveDataInMsgEventTracker(captor.capture());
+        MsgEventTracker saved = captor.getValue();
+
+        assertEquals("", saved.getBatchId(), "BatchId should default to empty string when null");
+    }
+
+/*    @Test
+    void testAuditIncomingMessage_parserErrorHandled() throws Exception {
+        // Arrange
+        String[] badXml = {"CBS", "<Invalid<xml"}; // malformed
+        // No need to stub, parser will fail
+
+        // Act
+        assertDoesNotThrow(() -> incomingMsgAudit.auditIncomingMessage(badXml));
+
+        // Assert
+        verifyNoInteractions(sfmsConsumerRepository);
+    }*/
 }

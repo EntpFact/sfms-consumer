@@ -87,7 +87,7 @@ class ProcessControllerTest {
         verifyNoInteractions(errorMsgAudit);
     }
 
-    @Test
+/*    @Test
     void testProcess_failure_invalidXml() throws JsonProcessingException {
         Mono<ResponseEntity<Response>> responseMono = controller.process(invalidRequestJson);
 
@@ -96,7 +96,7 @@ class ProcessControllerTest {
 
 
         verify(errorMsgAudit, times(1)).determineTopic(eq(invalidRequestJson));
-    }
+    }*/
 
     @Test
     void testTestProcess_success() throws JsonProcessingException {

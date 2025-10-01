@@ -4,7 +4,7 @@ package com.hdfcbank.sfmsconsumer.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.sfmsconsumer.config.TargetProcessorTopicConfig;
-import com.hdfcbank.sfmsconsumer.dao.NilRepository;
+import com.hdfcbank.sfmsconsumer.dao.SFMSConsumerRepository;
 import com.hdfcbank.sfmsconsumer.kafkaproducer.KafkaUtils;
 import com.hdfcbank.sfmsconsumer.model.*;
 import lombok.AllArgsConstructor;
@@ -29,7 +29,7 @@ public class ErrXmlRoutingService {
     KafkaUtils kafkaUtils;
 
     @Autowired
-    private NilRepository nilRepository;
+    private SFMSConsumerRepository SFMSConsumerRepository;
 
     private final TargetProcessorTopicConfig config;
 
@@ -38,68 +38,76 @@ public class ErrXmlRoutingService {
      * Determine the topic based on keyword matches in raw XML.
      */
     public void determineTopic(String xmlMessage) {
-        String lowerMsg = xmlMessage.toLowerCase();
-        // 1. Check pacs008, pacs004, pacs002 message types (first matching key wins)
-        Optional<Map.Entry<String, String>> resolvedTopic = config.getTopic().entrySet().stream()
-                .filter(e -> lowerMsg.contains(e.getKey()))
-                .findFirst();
+        try {
+            log.info("inside determineTopic : message {}",xmlMessage);
+            String lowerMsg = xmlMessage.toLowerCase();
 
-        // 2. Get target processor
-        Optional<Map.Entry<String, String>> targetProcessor = config.getProcessor().entrySet().stream()
-                .filter(e -> lowerMsg.contains(e.getKey()))
-                .findFirst();
+            // Get target processor
+            Optional<Map.Entry<String, String>> targetProcessor = config.getProcessor().entrySet().stream()
+                    .filter(e -> lowerMsg.contains(e.getKey().toLowerCase()))
+                    .findFirst();
 
+            log.info("Processor config keys: {}", config.getProcessor().keySet());
+            if (targetProcessor.isPresent()) {
+                // Get target processor
+                String target = targetProcessor.map(Map.Entry::getValue).orElse(null);
+                // Get Msg Type
+                String msgType = targetProcessor.get().getKey();
+                // Get topic
+                String topic = config.getTopicFileType(targetProcessor.get().getValue());
+                ReqPayload reqPayload = setReqPayloadFields(xmlMessage, msgType, target);
 
-        if (resolvedTopic.isPresent()) {
-            String target = targetProcessor.map(Map.Entry::getValue).orElse(null);
-            String msgType = resolvedTopic.get().getKey();
-            ReqPayload reqPayload = setReqPayloadFields(xmlMessage, msgType, target);
-
-            if (msgType.contains(ADMI)) {
-                admiErrorMessageAudit(xmlMessage, msgType);
-            } else {
-                errorMessageAudit(xmlMessage, msgType);
-            }
-            ObjectMapper mapper = new ObjectMapper();
-            try {
+                ObjectMapper mapper = new ObjectMapper();
                 String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(reqPayload);
-                log.info("Error Json : {}", json);
-                kafkaUtils.publishToResponseTopic(json, resolvedTopic.get().getValue());
+                if (msgType.contains(ADMI)) {
+                    admiErrorMessageAudit(xmlMessage, msgType, json);
+                } else {
+                    mvtErrorMessageAudit(xmlMessage, msgType, json);
+                }
 
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
-            }
+                log.info("Error Json : {}", json);
+                kafkaUtils.publishToResponseTopic(json, topic);
+            } else {
+            log.warn("No matching processor found for this XML");
+        }
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
         }
     }
 
-    public void errorMessageAudit(String errorReq, String msgType) {
-        MsgEventTracker tracker = new MsgEventTracker();
+    public void mvtErrorMessageAudit(String errorReq, String msgType, String reqPayload) {
         String target = config.getProcessorFileType(msgType.trim());
-        tracker.setMsgId(getMsgId(errorReq));
-        tracker.setOrgnlReq(errorReq);
-        tracker.setMsgType(msgType);
-        tracker.setFlowType(INWARD);
-        tracker.setSource(SFMS);
-        tracker.setTarget(target);
-        tracker.setInvalidReq(true);
+        String batchId = extractBatchIdValue(errorReq);
+        MsgEventTracker tracker = MsgEventTracker.builder()
+                .msgId(getMsgId(errorReq))
+                .orgnlReq(errorReq)
+                .msgType(msgType)
+                .flowType(INWARD)
+                .source(SFMS)
+                .batchId(batchId)
+                .transformedJsonReq(reqPayload)
+                .target(target)
+                .invalidReq(true)
+                .build();
 
         // Save to error msg_event_tracker table
-        nilRepository.saveDataInMsgEventTracker(tracker);
+        SFMSConsumerRepository.saveDataInMsgEventTracker(tracker);
     }
 
-    public void admiErrorMessageAudit(String errorReq, String msgType) {
+    public void admiErrorMessageAudit(String errorReq, String msgType, String reqPayload) {
 
         String target = config.getProcessorFileType(msgType.trim());
         AdmiTracker admiTracker = AdmiTracker.builder()
                 .msgId(getMsgId(errorReq))
                 .msgType(msgType)
                 .target(target)
+                .transformedJsonReq(reqPayload)
                 .invalidReq(true)
                 .orgnlReq(errorReq)
                 .build();
 
         // Save to error admi004_tracker table
-        nilRepository.saveDataInAdmiTracker(admiTracker);
+        SFMSConsumerRepository.saveDataInAdmiTracker(admiTracker);
 
     }
 
@@ -128,7 +136,7 @@ public class ErrXmlRoutingService {
     }
 
 
-    private String getMsgId(String xmlMessage) {
+    public String getMsgId(String xmlMessage) {
 
         Pattern pattern = Pattern.compile("<\\s*BizMsgIdr\\s*>(.*?)<\\s*/\\s*BizMsgIdr\\s*>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
         Matcher matcher = pattern.matcher(xmlMessage);
@@ -140,6 +148,18 @@ public class ErrXmlRoutingService {
             log.error("Error Message - MsgId not found.");
         }
         return msgId;
+    }
+
+    public String extractBatchIdValue(String xml) {
+        // Regex will match either <Ustrd>...</Ustrd> or <AddtlInf>...</AddtlInf>
+        String regex = "<(Ustrd|AddtlInf)>(.*?)</\\1>";
+        Pattern pattern = Pattern.compile(regex, Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(xml);
+
+        if (matcher.find()) {
+            return matcher.group(2); // the inner value of first match
+        }
+        return null; // if neither tag is present
     }
 
 

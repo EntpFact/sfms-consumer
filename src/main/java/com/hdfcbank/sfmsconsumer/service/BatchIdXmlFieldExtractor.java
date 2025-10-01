@@ -8,12 +8,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
-
 import static com.hdfcbank.sfmsconsumer.utils.Constants.MSGDEFIDR_XPATH;
+import static com.hdfcbank.sfmsconsumer.utils.SfmsConsmrCommonUtility.toXmlDocument;
 
 @Slf4j
 @Service
@@ -25,12 +21,6 @@ public class BatchIdXmlFieldExtractor {
 
     private final BatchIdXPathConfig batchIdXPathMap;
 
-    private static Document toXmlDocument(String xmlString) throws Exception {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        factory.setNamespaceAware(true);
-        DocumentBuilder builder = factory.newDocumentBuilder();
-        return builder.parse(new ByteArrayInputStream(xmlString.getBytes(StandardCharsets.UTF_8)));
-    }
 
     public String extractFieldByFileType(String xmlString) throws Exception {
         Document document = toXmlDocument(xmlString);

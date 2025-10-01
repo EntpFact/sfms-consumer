@@ -12,28 +12,25 @@ spring:
       concurrency: 1
     consumer:
       properties:
-        bootstrap.servers: 34.28.251.45:9092
+        bootstrap.servers: 20.192.24.194:39092 #FYNDNA KAFKA
         auto.offset.reset: earliest
         key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
         value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
-        group.id: nil-router-consumer
+        group.id: neft-il-consumer
     producer:
       properties:
-        bootstrap.servers: 34.28.251.45:9092
+        bootstrap.servers: 20.192.24.194:39092 #FYNDNA KAFKA
         key.serializer: org.apache.kafka.common.serialization.StringSerializer
         value.serializer: org.apache.kafka.common.serialization.StringSerializer
         enable.auto.commit: false
         missing.topics.fatal: false
 
   datasource:
-    url: ${datasourceUrl:jdbc:postgresql://34.135.239.235:5432/postgresdb}
-    username: ${dbusername:admin}
-    password: ${password:test123}
-    driver-class-name: ${diverclassname:org.postgresql.Driver}
+    url: ${DATABASE_URL:jdbc:postgresql://34.135.239.235:5432/postgresdb}
+    username: ${DATABASE_USERNAME:admin}
+    password: ${DATABASE_PWD:test123}
+    driver-class-name: ${DATABASE_DRIVERCLASS:org.postgresql.Driver}
 
-topic:
-  nilrouter: NILROUTER
-  msgeventtracker: MSGEVENTTRACKERTOPIC
 
 file-type:
   processor:
@@ -47,21 +44,26 @@ file-type:
     admi.004.001.02: admi004Processor
 
   topic:
-    pacs.008.001.09: pacs008Topic
-    pacs.004.001.10: pacs004Topic
-    pacs.002.001.11: pacs002Topic
-    camt.052.001.08: camt5254Topic
-    camt.054.001.08: camt5254Topic
-    camt.059.001.06: camt59Topic
-    admi.004.001.01: admi004Topic
-    admi.004.001.02: admi004Topic
+    pacs008Processor: neftil-pacs008-topic
+    pacs004Processor: neftil-pacs004-topic
+    pacs002Processor: neftil-pacs002-topic
+    camt5254Processor: neftil-camt5254-topic
+    camt59Processor: neftil-camt59-topic
+    admi004Processor: neftil-admi004-topic
 
   xpaths:
     pacs.008.001.09: "(.//*[local-name()='RmtInf']//*[local-name()='Ustrd'])[1]"
     pacs.004.001.10: "(.//*[local-name()='RmtInf']//*[local-name()='Ustrd'])[1]"
     pacs.002.001.11: "(.//*[local-name()='StsRsnInf']//*[local-name()='AddtlInf'])[1]"
-    camt.052.001.08: ".//*[local-name()='GrpHdr']//*[local-name()='AddtInf']"
-    camt.054.001.08: ".//*[local-name()='GrpHdr']//*[local-name()='AddtInf']"
+    camt.052.001.08: ".//*[local-name()='GrpHdr']//*[local-name()='AddtlInf']"
+    camt.054.001.08: ".//*[local-name()='GrpHdr']//*[local-name()='AddtlInf']"
+
+
+batch-tracker:
+  allowedMsgTypes:
+    - pacs.008.001.09
+    - pacs.002.001.11
+    - camt.054.001.08
 
 
 

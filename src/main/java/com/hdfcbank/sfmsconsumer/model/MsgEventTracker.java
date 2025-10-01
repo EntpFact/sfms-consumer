@@ -2,6 +2,7 @@ package com.hdfcbank.sfmsconsumer.model;
 
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -12,6 +13,7 @@ import java.util.Date;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 public class MsgEventTracker {
 
     private String msgId;
@@ -23,6 +25,7 @@ public class MsgEventTracker {
     private String batchId;
     private Integer orgnlReqCount;
     private BigDecimal consolidateAmt;
+    private String transformedJsonReq;
     private String intermediateReq;
     private Integer intermediateCount;
     private Boolean invalidReq;

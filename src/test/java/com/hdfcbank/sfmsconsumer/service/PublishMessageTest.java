@@ -5,20 +5,18 @@ import com.hdfcbank.sfmsconsumer.kafkaproducer.KafkaUtils;
 import com.hdfcbank.sfmsconsumer.utils.SfmsConsmrCommonUtility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.w3c.dom.Document;
 
 import javax.xml.xpath.XPathExpressionException;
 
-import static com.hdfcbank.sfmsconsumer.utils.Constants.MSGDEFIDR_XPATH;
-import static com.hdfcbank.sfmsconsumer.utils.Constants.MSGID_XPATH;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class PublishMessageTest {
 
     @Mock
@@ -31,96 +29,85 @@ class PublishMessageTest {
     private KafkaUtils kafkaUtils;
 
     @Mock
-    private ErrXmlRoutingService errXmlRoutingService;
+    private BuildJsonReq buildJsonReq;
 
     @InjectMocks
-    private PublishMessage publishMessage;  // class under test
+    private PublishMessage publishMessage;
+
+    private String[] xml;
 
     @BeforeEach
     void setUp() {
-        MockitoAnnotations.openMocks(this);
+        xml = new String[]{
+                "CBS", // prefix
+                "<RequestPayload>" +
+                        "<AppHdr><BizMsgIdr>RBIP20250911003</BizMsgIdr><MsgDefIdr>pacs.008.001.09</MsgDefIdr></AppHdr>" +
+                        "<Document><MsgDefIdr>pacs.008.001.09</MsgDefIdr></Document>" +
+                        "</RequestPayload>"
+        };
     }
-
     @Test
-    void testSendRequest_successfulFlow() throws Exception {
+    void testSendRequest_success() throws Exception {
         // Arrange
-        String prefix = "CBS";
-        String payload = "<RequestPayload><AppHdr><MsgDefIdr>pacs.008.001.07</MsgDefIdr>"
-                + "<MsgId>RBIP123456789</MsgId></AppHdr></RequestPayload>";
-        String[] xml = {prefix, payload};
+        when(sfmsConsmrCommonUtility.getValueByXPath(
+                any(Document.class),
+                eq("//*[local-name()='AppHdr']/*[local-name()='MsgDefIdr']"))
+        ).thenReturn("pacs.008.001.09");
 
-        when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), eq(MSGDEFIDR_XPATH)))
-                .thenReturn("pacs.008.001.07");
-        when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), eq(MSGID_XPATH)))
-                .thenReturn("RBIP123456789");
+        when(buildJsonReq.buildRequest(xml)).thenReturn("{\"json\":\"value\"}");
 
-        when(config.getProcessorFileType("pacs.008.001.07")).thenReturn("ProcessorX");
-        when(config.getTopicFileType("pacs.008.001.07")).thenReturn("topic.test");
+        // both methods must be stubbed
+        when(config.getProcessorFileType("pacs.008.001.09")).thenReturn("pacs008Processor");
+        when(config.getTopicFileType("pacs008Processor")).thenReturn("topic-pacs008");
 
         // Act
         publishMessage.sendRequest(xml);
 
-        // Assert → verify kafkaUtils was called
-        ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> topicCaptor = ArgumentCaptor.forClass(String.class);
-
-        verify(kafkaUtils, times(1)).publishToResponseTopic(jsonCaptor.capture(), topicCaptor.capture());
-
-        String jsonSent = jsonCaptor.getValue();
-        assertTrue(jsonSent.contains("RBIP123456789")); // msgId present
-        assertTrue(jsonSent.contains("pacs.008.001.07")); // msgDefIdr present
-        assertEquals("topic.test", topicCaptor.getValue());
-
-        verify(errXmlRoutingService, never()).determineTopic(anyString());
+        // Assert
+        verify(kafkaUtils).publishToResponseTopic("{\"json\":\"value\"}", "topic-pacs008");
     }
 
     @Test
-    void testSendRequest_xpathThrowsException_fallbackToErrorRouting() throws Exception {
+    void testSendRequest_msgDefIdrWithSpaces() throws Exception {
         // Arrange
-        String[] xml = {"CBS", "<InvalidXml>"};
+        when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), anyString()))
+                .thenReturn("  pacs.004.001.09   "); // with spaces
 
+        when(buildJsonReq.buildRequest(xml)).thenReturn("{\"json\":\"value2\"}");
+
+        // both processor + topic mappings needed
+        when(config.getProcessorFileType("pacs.004.001.09")).thenReturn("pacs004Processor");
+        when(config.getTopicFileType("pacs004Processor")).thenReturn("topic-pacs004");
+
+        // Act
+        publishMessage.sendRequest(xml);
+
+        // Assert
+        verify(kafkaUtils).publishToResponseTopic("{\"json\":\"value2\"}", "topic-pacs004");
+    }
+
+    @Test
+    void testSendRequest_xpathExceptionWrapped1() throws Exception {
+        // Arrange
         when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), anyString()))
                 .thenThrow(new XPathExpressionException("Invalid XPath"));
 
-        // Act
-        publishMessage.sendRequest(xml);
+        // Act + Assert
+        assertThrows(RuntimeException.class, () -> publishMessage.sendRequest(xml));
 
-        // Assert → should fallback to error routing
-        verify(kafkaUtils, never()).publishToResponseTopic(anyString(), anyString());
-        verify(errXmlRoutingService, times(1)).determineTopic("CBS<InvalidXml>");
+        // Kafka must not be called
+        verifyNoInteractions(kafkaUtils);
     }
 
     @Test
-    void testSendRequest_configReturnsNullTarget_stillPublishes() throws Exception {
+    void testSendRequest_xpathExceptionWrapped() throws Exception {
         // Arrange
-        String[] xml = {"CBS", "<RequestPayload><AppHdr><MsgDefIdr>camt.054.001.08</MsgDefIdr>"
-                + "<MsgId>RBIP2222</MsgId></AppHdr></RequestPayload>"};
+        when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), anyString()))
+                .thenThrow(new XPathExpressionException("Invalid XPath"));
 
-        when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), eq(MSGDEFIDR_XPATH)))
-                .thenReturn("camt.054.001.08");
-        when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class), eq(MSGID_XPATH)))
-                .thenReturn("RBIP2222");
-
-        when(config.getProcessorFileType("camt.054.001.08")).thenReturn(null);
-        when(config.getTopicFileType("camt.054.001.08")).thenReturn("topic.camt54");
-
-        // Act
-        publishMessage.sendRequest(xml);
-
-        // Assert
-        verify(kafkaUtils, times(1)).publishToResponseTopic(anyString(), eq("topic.camt54"));
-    }
-
-    @Test
-    void testSendRequest_invalidXml_fallbackToErrorRouting() {
-        // Arrange
-        String[] xml = {"CBS", "<RequestPayload><UnclosedTag>"};
-
-        // Act
-        publishMessage.sendRequest(xml);
-
-        // Assert
-        verify(errXmlRoutingService, times(1)).determineTopic("CBS<RequestPayload><UnclosedTag>");
-        verify(kafkaUtils, never()).publishToResponseTopic(anyString(), anyString());
+        // Act + Assert
+        assertThrows(RuntimeException.class, () -> publishMessage.sendRequest(xml));
+        verifyNoInteractions(kafkaUtils);
     }
 }
+

@@ -2,15 +2,15 @@ package com.hdfcbank.sfmsconsumer.service;
 
 
 import com.hdfcbank.sfmsconsumer.config.TargetProcessorTopicConfig;
-import com.hdfcbank.sfmsconsumer.dao.NilRepository;
+import com.hdfcbank.sfmsconsumer.dao.SFMSConsumerRepository;
 import com.hdfcbank.sfmsconsumer.model.AdmiTracker;
-import com.hdfcbank.sfmsconsumer.model.BatchTracker;
 import com.hdfcbank.sfmsconsumer.model.MsgEventTracker;
 import com.hdfcbank.sfmsconsumer.utils.SfmsConsmrCommonUtility;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.w3c.dom.Document;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
@@ -30,7 +30,7 @@ import static com.hdfcbank.sfmsconsumer.utils.Constants.*;
 public class IncomingMsgAudit {
 
     @Autowired
-    NilRepository nilRepository;
+    SFMSConsumerRepository SFMSConsumerRepository;
 
     @Autowired
     SfmsConsmrCommonUtility sfmsConsmrCommonUtility;
@@ -40,6 +40,13 @@ public class IncomingMsgAudit {
     @Autowired
     BatchIdXmlFieldExtractor batchIdXmlFieldExtractor;
 
+    @Autowired
+    private ErrXmlRoutingService errorMsgAudit;
+
+    @Autowired
+    BuildJsonReq buildJsonReq;
+
+    @Transactional
     public void auditIncomingMessage(String xmlMessage[]) {
 
         try {
@@ -55,6 +62,8 @@ public class IncomingMsgAudit {
             //Get batchID
             String batchId = batchIdXmlFieldExtractor.extractFieldByFileType(xmlMessage[1]);
 
+            // Get json request.
+            String jsonReq = buildJsonReq.buildRequest(xmlMessage);
 
             if (msgType.contains(ADMI)) {
                 AdmiTracker admiTracker = AdmiTracker.builder()
@@ -62,25 +71,30 @@ public class IncomingMsgAudit {
                         .msgType(msgType)
                         .target(target)
                         .invalidReq(false)
+                        .transformedJsonReq(jsonReq)
                         .orgnlReq(xmlMessage[0] + xmlMessage[1])
                         .build();
 
-                nilRepository.saveDataInAdmiTracker(admiTracker);
+                SFMSConsumerRepository.saveDataInAdmiTracker(admiTracker);
 
 
             } else {
 
-                MsgEventTracker msgEventTracker = new MsgEventTracker();
-                msgEventTracker.setMsgId(msgId);
-                msgEventTracker.setMsgType(msgType);
-                msgEventTracker.setSource(SFMS);
-                msgEventTracker.setInvalidReq(false);
-                msgEventTracker.setTarget(target);
-                msgEventTracker.setBatchId(batchId!=null ? batchId: "");
-                msgEventTracker.setOrgnlReq(xmlMessage[0] + xmlMessage[1]);
-                nilRepository.saveDataInMsgEventTracker(msgEventTracker);
-            }
+                MsgEventTracker msgEventTracker = MsgEventTracker.builder()
+                        .msgId(msgId)
+                        .msgType(msgType)
+                        .source(SFMS)
+                        .flowType(INWARD)
+                        .invalidReq(false)
+                        .transformedJsonReq(jsonReq)
+                        .target(target)
+                        .batchId(batchId != null ? batchId : "")
+                        .orgnlReq(xmlMessage[0] + xmlMessage[1])
+                        .build();
 
+                SFMSConsumerRepository.saveDataInMsgEventTracker(msgEventTracker);
+            }
+/*
             BatchTracker batchTracker = BatchTracker.builder()
                     .batchId(batchId!=null ? batchId: "")
                     .msgId(msgId)
@@ -88,11 +102,14 @@ public class IncomingMsgAudit {
                     .status(CAPTURED)
                     .build();
 
-            nilRepository.saveMsgInBatchTracker(batchTracker);
+            SFMSConsumerRepository.saveMsgInBatchTracker(batchTracker);*/
 
         } catch (ParserConfigurationException | SAXException | IOException | XPathExpressionException e) {
-            log.error("Error Message received : {}", e.getMessage());
+            log.error("Error Message received : {}", e);
+            errorMsgAudit.determineTopic(xmlMessage[0]+xmlMessage[1]);
         } catch (Exception e) {
+            errorMsgAudit.determineTopic(xmlMessage[0]+xmlMessage[1]);
+            log.error("Error Message received : {}", e);
             throw new RuntimeException(e);
         }
 
