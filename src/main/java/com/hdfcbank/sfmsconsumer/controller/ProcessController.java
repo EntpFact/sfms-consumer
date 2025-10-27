@@ -4,10 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hdfcbank.sfmsconsumer.model.Response;
-import com.hdfcbank.sfmsconsumer.service.ErrXmlRoutingService;
-import com.hdfcbank.sfmsconsumer.service.IncomingMsgAudit;
-import com.hdfcbank.sfmsconsumer.service.PublishMessage;
-import com.hdfcbank.sfmsconsumer.service.XmlSanitizer;
+import com.hdfcbank.sfmsconsumer.service.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -46,14 +43,17 @@ public class ProcessController {
     @Autowired
     private ErrXmlRoutingService errorMsgAudit;
 
+    @Autowired
+    private BypassService bypassService;
+
     @CrossOrigin
-    @GetMapping(path = "/healthz")
+    @GetMapping("/healthz")
     public ResponseEntity<String> healthz() {
         return ResponseEntity.ok("Success");
     }
 
     @CrossOrigin
-    @GetMapping(path = "/ready")
+    @GetMapping("/ready")
     public ResponseEntity<String> ready() {
         return ResponseEntity.ok("Success");
     }
@@ -65,71 +65,111 @@ public class ProcessController {
 
         return Mono.fromCallable(() -> validateXml(request))
                 .flatMap(xmlString -> {
-                    // If XML is valid
-                    if (xmlString != null && xmlString.length > 1 && !xmlString[1].isBlank()) {
-                        incomingMsgAudit.auditIncomingMessage(xmlString);
 
-                        String sanitized = XmlSanitizer.sanitize(xmlString[1]);
-                        xmlString[1] = sanitized;
-                        log.info("XmlSanitizer output : {}", sanitized);
-
-                        publishMessage.sendRequest(xmlString);
+                    //  Bypass strategy check
+                    if (bypassService.isBypassEnabled()) {
+                        log.info("Bypass strategy enabled — routing message to configured switch/topic");
+                        bypassService.sendToBypassSwitch(xmlString[0] + xmlString[1]);
+                        return Mono.just(ResponseEntity.ok(
+                                new Response("SUCCESS", "Message routed via bypass.")));
                     }
-                    return Mono.just(ResponseEntity.ok(new Response("SUCCESS", "Message Processed.")));
+
+                    // 2️ Normal processing flow
+                    return incomingMsgAudit.auditIncomingMessage(xmlString)
+                            .flatMap(status -> {
+                                switch (status) {
+                                    case SUCCESS:
+                                        // Continue for non-duplicate messages
+                                        String sanitized = XmlSanitizer.sanitize(xmlString[1]);
+                                        xmlString[1] = sanitized;
+                                        log.info("XmlSanitizer output: {}", sanitized);
+
+                                        return publishMessage.sendRequest(xmlString)
+                                                .thenReturn(ResponseEntity.ok(
+                                                        new Response("SUCCESS", "Message Processed.")));
+                                    case DUPLICATE:
+                                        log.warn("Duplicate message detected — skipping further processing.");
+                                        return Mono.just(ResponseEntity.ok(
+                                                new Response("DUPLICATE", "Message already processed.")));
+                                    case ERROR:
+                                    default:
+                                        return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                                .body(new Response("ERROR", "Message audit failed.")));
+                                }
+
+
+                            });
                 })
                 .onErrorResume(ex -> {
-
                     log.error("XML Parsing Failed: {}", ex.getMessage(), ex);
                     return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                             .body(new Response("ERROR", "Message Processing Failed")));
                 })
-                .doFinally(signalType -> log.info("....Processing Completed...."));
+                .doFinally(signal -> log.info("....Processing Completed...."));
     }
 
-
+    // For testing bypass or flow logic manually
     @CrossOrigin
     @PostMapping("/testProcess")
     public Mono<ResponseEntity<Response>> testProcess(@RequestBody String request) {
         log.info("....Processing Started....");
-        return Mono.fromCallable(() -> {
-            try {
-                log.info("Test request : {}", request);
-                String[] xmlString = validateXml(request);
+        return Mono.fromCallable(() -> validateXml(request))
+                .flatMap(xmlString -> {
 
-                if (xmlString != null && xmlString.length > 1 && !xmlString[1].isBlank()) {
-                    incomingMsgAudit.auditIncomingMessage(xmlString);
+                    //  Bypass strategy check
+                    if (bypassService.isBypassEnabled()) {
+                        log.info("Bypass strategy enabled — routing message to configured switch/topic");
+                        bypassService.sendToBypassSwitch(xmlString[0] + xmlString[1]);
+                        return Mono.just(ResponseEntity.ok(
+                                new Response("SUCCESS", "Message routed via bypass.")));
+                    }
 
-                    String sanitized = XmlSanitizer.sanitize(xmlString[1]);
-                    xmlString[1] = sanitized;
-                    log.info("XmlSanitizer output : {}", sanitized);
-                    publishMessage.sendRequest(xmlString);
-                }
+                    // 2️ Normal processing flow
+                    return incomingMsgAudit.auditIncomingMessage(xmlString)
+                            .flatMap(status -> {
+                                switch (status) {
+                                    case SUCCESS:
+                                        // Continue for non-duplicate messages
+                                        String sanitized = XmlSanitizer.sanitize(xmlString[1]);
+                                        xmlString[1] = sanitized;
+                                        log.info("XmlSanitizer output: {}", sanitized);
 
-                return ResponseEntity.ok(new Response("SUCCESS", "Message Processed."));
-            } catch (Exception ex) {
-                log.error("Failed in consuming the test message: {}", ex.getMessage(), ex);
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(new Response("ERROR", "Message Processing Failed"));
-            } finally {
-                log.info("....Processing Completed....");
-            }
-        }).onErrorResume(ex -> {
-            return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new Response("ERROR", "Message Processing Failed")));
-        });
+                                        return publishMessage.sendRequest(xmlString)
+                                                .thenReturn(ResponseEntity.ok(
+                                                        new Response("SUCCESS", "Message Processed.")));
+                                    case DUPLICATE:
+                                        log.warn("Duplicate message detected — skipping further processing.");
+                                        return Mono.just(ResponseEntity.ok(
+                                                new Response("DUPLICATE", "Message already processed.")));
+                                    case ERROR:
+                                    default:
+                                        return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                                .body(new Response("ERROR", "Message audit failed.")));
+                                }
+
+
+                            });
+                })
+                .onErrorResume(ex -> {
+                    log.error("XML Parsing Failed: {}", ex.getMessage(), ex);
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body(new Response("ERROR", "Message Processing Failed")));
+                })
+                .doFinally(signal -> log.info("....Processing Completed...."));
     }
 
-    private String[] validateXml(String request)  {
-        String xmlMsg =null;
+    //  XML Validation + Error Routing
+    private String[] validateXml(String request) {
+        String xmlMsg = null;
         try {
-            ObjectMapper objectMapper = new ObjectMapper();
+ /*           ObjectMapper objectMapper = new ObjectMapper();
             JsonNode rootNode = objectMapper.readTree(request);
 
             String base64Data = rootNode.get("data_base64").asText();
             xmlMsg = new String(Base64.getDecoder().decode(base64Data), StandardCharsets.UTF_8);
-
+*/
             // Remove BOM safely
-            String[] xmlMessage = removeBOM(xmlMsg);
+            String[] xmlMessage = removeBOM(request);
             xmlMessage[0] = xmlMessage[0].trim();
             xmlMessage[1] = xmlMessage[1].trim();
 
@@ -146,36 +186,30 @@ public class ProcessController {
                 public void warning(SAXParseException e) throws SAXException { throw e; }
             });
 
-            builder.parse(new ByteArrayInputStream(xmlMessage[1].getBytes(StandardCharsets.UTF_8)));
-
+            Document document = builder.parse(new ByteArrayInputStream(xmlMessage[1].getBytes(StandardCharsets.UTF_8)));
             return xmlMessage;
-        }catch (SAXException | IOException | ParserConfigurationException e ) {
-            // If XML parsing fails
+
+        } catch (SAXException | IOException | ParserConfigurationException e) {
             log.info("Calling determineTopic due to XML error");
-            try {
-                errorMsgAudit.determineTopic(xmlMsg);
-            } catch (Exception dtEx) {
-                log.error("determineTopic() failed: {}", dtEx.getMessage(), dtEx);
-            };
+            errorMsgAudit.determineTopic(request).subscribe(
+                    nullValue -> {}, // onNext, not used for Mono<Void>
+                    err -> log.error("Error in determineTopic", err),
+                    () -> log.info("determineTopic completed successfully")
+            );
             return null;
         }
-
     }
 
-
+    //  Utility: Remove BOM and split header/body
     public static String[] removeBOM(String xml) {
         if (xml == null) return null;
-        if (xml.startsWith("\uFEFF")) {
-            xml = xml.substring(1);
-        }
+        if (xml.startsWith("\uFEFF")) xml = xml.substring(1);
         return splitAtFirstTag(xml);
     }
 
     public static String[] splitAtFirstTag(String message) {
         int index = message.indexOf('<');
-        if (index == -1) {
-            return new String[]{message, ""};
-        }
+        if (index == -1) return new String[]{message, ""};
         String before = message.substring(0, index);
         String after = message.substring(index);
         return new String[]{before, after};

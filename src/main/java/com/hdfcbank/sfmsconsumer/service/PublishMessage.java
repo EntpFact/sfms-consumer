@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
+import reactor.core.publisher.Mono;
 
 import javax.xml.xpath.XPathExpressionException;
 
@@ -30,21 +31,29 @@ public class PublishMessage {
     @Autowired
     BuildJsonReq buildJsonReq;
 
-    public void sendRequest(String xml[]) {
 
+    public Mono<Void> sendRequest(String[] xml) {
+        return Mono.fromRunnable(() -> {
+            try {
+                Document document = toXmlDocument(xml[1]);
+                String msgDefIdr = sfmsConsmrCommonUtility.getValueByXPath(document, MSGDEFIDR_XPATH);
+                String jsonReq = buildJsonReq.buildRequest(xml);
+                String target = config.getProcessorFileType(msgDefIdr.trim());
+                String topic = config.getTopicFileType(target.trim());
 
-        try {
-            Document document = toXmlDocument(xml[1]);
-            String msgDefIdr = sfmsConsmrCommonUtility.getValueByXPath(document, MSGDEFIDR_XPATH);
-            String jsonReq = buildJsonReq.buildRequest(xml);
-            String target = config.getProcessorFileType(msgDefIdr.trim());
-            String topic = config.getTopicFileType(target.trim());
+                // Send to respective processor topic
+                log.info("JSON : {}", jsonReq);
+                kafkaUtils.publishToResponseTopic(jsonReq, topic);
 
-            // Send to respective processor topic
-            log.info("JSON : {}", jsonReq);
-            kafkaUtils.publishToResponseTopic(jsonReq, topic);
-        } catch (XPathExpressionException e) {
-            throw new RuntimeException(e);
-        }
+            } catch (XPathExpressionException e) {
+                log.error("XPath parsing error while publishing: {}", e.getMessage(), e);
+                throw new RuntimeException(e);
+            } catch (Exception e) {
+                log.error("Error in sendRequest: {}", e.getMessage(), e);
+                throw new RuntimeException(e);
+            }
+        });
     }
+
+
 }

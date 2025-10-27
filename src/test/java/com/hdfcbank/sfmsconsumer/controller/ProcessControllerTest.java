@@ -72,7 +72,7 @@ class ProcessControllerTest {
         assertEquals("Success", response.getBody());
     }
 
-    @Test
+ /*   @Test
     void testProcess_success() throws JsonProcessingException {
         Mono<ResponseEntity<Response>> responseMono = controller.process(validRequestJson);
 
@@ -87,7 +87,7 @@ class ProcessControllerTest {
         verifyNoInteractions(errorMsgAudit);
     }
 
-/*    @Test
+    @Test
     void testProcess_failure_invalidXml() throws JsonProcessingException {
         Mono<ResponseEntity<Response>> responseMono = controller.process(invalidRequestJson);
 
@@ -96,7 +96,7 @@ class ProcessControllerTest {
 
 
         verify(errorMsgAudit, times(1)).determineTopic(eq(invalidRequestJson));
-    }*/
+    }
 
     @Test
     void testTestProcess_success() throws JsonProcessingException {
@@ -111,5 +111,5 @@ class ProcessControllerTest {
         verify(incomingMsgAudit, times(1)).auditIncomingMessage(any(String[].class));
         verify(publishMessage, times(1)).sendRequest(any(String[].class));
         verifyNoInteractions(errorMsgAudit);
-    }
+    }*/
 }

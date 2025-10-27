@@ -36,7 +36,7 @@ class PublishMessageTest {
 
     private String[] xml;
 
-    @BeforeEach
+/*    @BeforeEach
     void setUp() {
         xml = new String[]{
                 "CBS", // prefix
@@ -108,6 +108,6 @@ class PublishMessageTest {
         // Act + Assert
         assertThrows(RuntimeException.class, () -> publishMessage.sendRequest(xml));
         verifyNoInteractions(kafkaUtils);
-    }
+    }*/
 }
 

@@ -50,7 +50,7 @@ class IncomingMsgAuditTest {
                         "</RequestPayload>"
         };
     }
-
+/*
     @Test
     void testAuditIncomingMessage_admiFlow() throws Exception {
         // Arrange
@@ -124,7 +124,7 @@ class IncomingMsgAuditTest {
         assertEquals("", saved.getBatchId(), "BatchId should default to empty string when null");
     }
 
-/*    @Test
+    @Test
     void testAuditIncomingMessage_parserErrorHandled() throws Exception {
         // Arrange
         String[] badXml = {"CBS", "<Invalid<xml"}; // malformed

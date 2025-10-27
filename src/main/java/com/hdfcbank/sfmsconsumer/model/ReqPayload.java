@@ -12,4 +12,5 @@ public class ReqPayload {
 
     private Header header;
     private Body body;
+    private ExceptionDetail exceptionDetail;
 }

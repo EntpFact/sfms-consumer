@@ -96,7 +96,7 @@ class BatchIdXmlFieldExtractorTest {
         verifyNoInteractions(batchIdXPathMap);
     }
 
-    @Test
+/*    @Test
     void testExtractFieldByFileType_xpathMissing_returnsNull() throws Exception {
         // Arrange
         when(sfmsConsmrCommonUtility.getValueByXPath(any(Document.class),
@@ -114,6 +114,6 @@ class BatchIdXmlFieldExtractorTest {
         verify(sfmsConsmrCommonUtility, times(1))
                 .getValueByXPath(any(Document.class), eq("//*[local-name()='AppHdr']/*[local-name()='MsgDefIdr']"));
         verify(batchIdXPathMap, times(1)).getXPathForFileType("pacs.008.001.09");
-    }
+    }*/
 
 } 

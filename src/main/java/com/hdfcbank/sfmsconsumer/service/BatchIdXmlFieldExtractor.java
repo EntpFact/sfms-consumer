@@ -36,7 +36,7 @@ public class BatchIdXmlFieldExtractor {
         if (targetXPath == null || targetXPath.trim().isEmpty()) {
             // Log a warning or return null based on your use case
             log.info("Batch Id not present : {}", targetXPath);
-            return null;
+            return "";
         }
 
         return sfmsConsmrCommonUtility.getValueByXPath(document, targetXPath);

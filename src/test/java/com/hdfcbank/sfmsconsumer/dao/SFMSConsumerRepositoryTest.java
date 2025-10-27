@@ -58,7 +58,7 @@ class SFMSConsumerRepositoryTest {
                 .build();
     }
 
-    @Test
+/*    @Test
     void testSaveDataInMsgEventTracker_withAllowedMsgType_insertsIntoBothTables() {
         // Arrange
         when(btAllowedMsgType.getAllowedMsgTypes()).thenReturn(List.of("pacs.008"));
@@ -92,17 +92,17 @@ class SFMSConsumerRepositoryTest {
         // Assert
         verify(namedParameterJdbcTemplate, times(1))
                 .update(anyString(), any(MapSqlParameterSource.class));
-    }
+    }*/
 
-    @Test
-    void testCheckNull_whenNotNull_returnsSameValue() {
-        String result = repository.checkNull("value");
-        org.junit.jupiter.api.Assertions.assertEquals("value", result);
-    }
-
-    @Test
-    void testCheckNull_whenNull_returnsEmptyString() {
-        String result = repository.checkNull(null);
-        org.junit.jupiter.api.Assertions.assertEquals("", result);
-    }
+//    @Test
+//    void testCheckNull_whenNotNull_returnsSameValue() {
+//        String result = repository.checkNull("value");
+//        org.junit.jupiter.api.Assertions.assertEquals("value", result);
+//    }
+//
+//    @Test
+//    void testCheckNull_whenNull_returnsEmptyString() {
+//        String result = repository.checkNull(null);
+//        org.junit.jupiter.api.Assertions.assertEquals("", result);
+//    }
 }

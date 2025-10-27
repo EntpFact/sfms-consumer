@@ -24,12 +24,21 @@ spring:
         value.serializer: org.apache.kafka.common.serialization.StringSerializer
         enable.auto.commit: false
         missing.topics.fatal: false
-
-  datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://34.135.239.235:5432/postgresdb}
-    username: ${DATABASE_USERNAME:admin}
-    password: ${DATABASE_PWD:test123}
-    driver-class-name: ${DATABASE_DRIVERCLASS:org.postgresql.Driver}
+  # -------------------------------
+  # R2DBC PostgreSQL Config
+  # -------------------------------
+  r2dbc:
+    url: r2dbc:postgresql://34.135.239.235:5432/postgresdb
+    username: admin
+    password: test123
+    pool:
+      initial-size: 5
+      max-size: 20
+  #datasource:
+    #url: ${DATABASE_URL:jdbc:postgresql://34.135.239.235:5432/postgresdb}
+    #username: ${DATABASE_USERNAME:admin}
+    #password: ${DATABASE_PWD:test123}
+    #driver-class-name: ${DATABASE_DRIVERCLASS:org.postgresql.Driver}
 
 
 file-type:
@@ -58,7 +67,19 @@ file-type:
     camt.052.001.08: ".//*[local-name()='GrpHdr']//*[local-name()='AddtlInf']"
     camt.054.001.08: ".//*[local-name()='GrpHdr']//*[local-name()='AddtlInf']"
 
+# -------------------------------
+# Bypass Strategy Config
+# -------------------------------
+bypass:
+  enabled: false                 # Enable/disable bypass globally
+  default-switch: FC            # Default switch if not specified
+  switches:
+    FC: fc-kafka-topic          # Switch FC maps to this Kafka topic
+    EPH: eph-kafka-topic        # Switch EPH maps to this Kafka topic
 
+# -------------------------------
+# Allowed Message Types for Batch Tracker
+# -------------------------------
 batch-tracker:
   allowedMsgTypes:
     - pacs.008.001.09

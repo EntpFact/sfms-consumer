@@ -10,4 +10,6 @@ public class Constants {
     public static final String RAW_PAYLOAD = "rawPayload";
     public static final String TRUE = "true";
     public static final String ADMI = "admi";
+    public static final String BATCH_CREDT_XPATH = "//*[local-name()='AppHdr']/*[local-name()='CreDt']";
+
 }

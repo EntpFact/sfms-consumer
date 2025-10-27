@@ -28,11 +28,11 @@ spring:
         enable.auto.commit: false
         missing.topics.fatal: false
 
-  datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://34.135.239.235:5432/postgresdb}
-    username: ${DATABASE_USERNAME:admin}
-    password: ${DATABASE_PWD:test123}
-    driver-class-name: ${DATABASE_DRIVERCLASS:org.postgresql.Driver}
+  #datasource:
+    #url: ${DATABASE_URL:jdbc:postgresql://34.135.239.235:5432/postgresdb}
+    #username: ${DATABASE_USERNAME:admin}
+    #password: ${DATABASE_PWD:test123}
+    #driver-class-name: ${DATABASE_DRIVERCLASS:org.postgresql.Driver}
 
 file-type:
   processor:
