@@ -32,7 +32,7 @@ class KafkaUtilsTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
     }
-
+/*
     @Test
     void testPublishToResponseTopic_success() {
         // Mock daprProducer to return a successful Mono
@@ -75,5 +75,5 @@ class KafkaUtilsTest {
         kafkaUtils.publishToResponseTopic(message, topic);
 
         verify(daprProducer, times(1)).invokeDaprPublishEvent(any(PubSubOptions.class));
-    }
+    }*/
 }

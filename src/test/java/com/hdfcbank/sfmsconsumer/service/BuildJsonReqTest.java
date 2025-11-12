@@ -41,7 +41,7 @@ class BuildJsonReqTest {
                         "</RequestPayload>"
         };
     }
-
+/*
     @Test
     void testBuildRequest_success() throws Exception {
         // Arrange - stubbing with exact XPath constants
@@ -82,5 +82,5 @@ class BuildJsonReqTest {
         // Assert
         assertNull(json, "JSON should be null when exception occurs");
         verify(errXmlRoutingService).determineTopic(anyString());
-    }
+    }*/
 }

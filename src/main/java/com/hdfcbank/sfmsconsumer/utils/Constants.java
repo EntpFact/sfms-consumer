@@ -11,5 +11,8 @@ public class Constants {
     public static final String TRUE = "true";
     public static final String ADMI = "admi";
     public static final String BATCH_CREDT_XPATH = "//*[local-name()='AppHdr']/*[local-name()='CreDt']";
-
+    public static final String DATABASE_ERROR = "DATABASE_ERROR";
+    public static final String JSON_PROCESSING_ERROR = "JSON_PROCESSING_ERROR";
+    public static final String XPATH_PARSING_ERROR = "XPATH_PARSING_ERROR";
+    public static final String SFMS_CONSUMER = "sfms-consumer";
 }

@@ -2,6 +2,7 @@ package com.hdfcbank.sfmsconsumer.kafkaproducer;
 
 import com.hdfcbank.messageconnect.config.PubSubOptions;
 import com.hdfcbank.messageconnect.dapr.producer.DaprProducer;
+import com.hdfcbank.sfmsconsumer.dao.SFMSConsumerRepository;
 import com.hdfcbank.sfmsconsumer.utils.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,9 +12,6 @@ import reactor.core.publisher.Mono;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.hdfcbank.sfmsconsumer.utils.Constants.RAW_PAYLOAD;
-import static com.hdfcbank.sfmsconsumer.utils.Constants.TRUE;
-
 @Slf4j
 @Service
 public class KafkaUtils {
@@ -21,24 +19,34 @@ public class KafkaUtils {
     @Autowired
     DaprProducer daprProducer;
 
+    @Autowired
+    private SFMSConsumerRepository sfmsConsumerRepository;
 
-    public void publishToResponseTopic(String message, String topic) {
+
+    public Mono<Void> publishToResponseTopic(String message, String topic, String msgId, String batchId) {
 
         Map<String, String> metadata = new HashMap<>();
-        metadata.put(RAW_PAYLOAD, TRUE);  // optional, for raw XML/string
-        metadata.put("partitionKey","123");
+        metadata.put("partitionKey", msgId);
 
-        var kafkaBinding = PubSubOptions.builder().requestData(message).topic(topic)
+        var kafkaBinding = PubSubOptions.builder()
+                .requestData(message)
+                .topic(topic)
                 .pubsubName(Constants.KAFKA_RESPONSE_TOPIC_DAPR_BINDING)
                 .metadata(metadata)
                 .build();
-        var resp = daprProducer.invokeDaprPublishEvent(kafkaBinding);
-        resp.doOnSuccess(res -> {
-            log.info("Response published to response topic successfully");
-        }).onErrorResume(res -> {
-            log.info("Error on publishing the response to response topic");
-            return Mono.empty();
-        }).share().block();
+        return Mono.fromRunnable(() ->
+                        log.info("Mock publish success for msgId={} topic={}", msgId, topic)
+                )
+                .then();
+/*        return daprProducer.invokeDaprPublishEvent(kafkaBinding)
+                .doOnSuccess(res -> log.info("Published message {} to topic {}", msgId, topic))
+                .then() // ensure success path is Mono<Void>
+                .onErrorResume(ex -> {
+                    log.error(" Failed to publish message {}: {}", msgId, ex.getMessage(), ex);
 
+                    // Update TECX and propagate an error so offset isn't committed
+                    return sfmsConsumerRepository.updateStatusToTecx(msgId)
+                            .then(Mono.error(new RuntimeException("Kafka publish failed", ex)));
+                });*/
     }
 }

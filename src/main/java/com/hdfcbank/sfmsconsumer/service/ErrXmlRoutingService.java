@@ -3,11 +3,12 @@ package com.hdfcbank.sfmsconsumer.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hdfcbank.sfmsconsumer.config.InvalidAndExceptionMsgTopic;
 import com.hdfcbank.sfmsconsumer.config.TargetProcessorTopicConfig;
 import com.hdfcbank.sfmsconsumer.dao.SFMSConsumerRepository;
 import com.hdfcbank.sfmsconsumer.kafkaproducer.KafkaUtils;
 import com.hdfcbank.sfmsconsumer.model.*;
-import io.r2dbc.spi.R2dbcDataIntegrityViolationException;
+import com.hdfcbank.sfmsconsumer.utils.SfmsConsmrCommonUtility;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,10 +17,8 @@ import reactor.core.publisher.Mono;
 
 import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-import static com.hdfcbank.sfmsconsumer.utils.Constants.*;
+import static com.hdfcbank.sfmsconsumer.utils.Constants.JSON_PROCESSING_ERROR;
 
 
 @Slf4j
@@ -35,59 +34,113 @@ public class ErrXmlRoutingService {
 
     private final TargetProcessorTopicConfig config;
 
+    @Autowired
+    private BuildJsonReq buildJsonReq;
+
+    @Autowired
+    private SfmsConsmrCommonUtility sfmsConsmrCommonUtility;
+
+    private final InvalidAndExceptionMsgTopic topicDetails;
+
     /**
      * Determine the topic based on keyword matches in raw XML.
      */
     public Mono<Void> determineTopic(String xmlMessage) {
+        ReqPayload reqPayload = new ReqPayload();
+
         try {
-            log.info("Inside determineTopic : message {}", xmlMessage);
+            log.info("Error message received: determineTopic");
             String lowerMsg = xmlMessage.toLowerCase();
 
+            // Step 1: Find matching processor from config
             Optional<Map.Entry<String, String>> targetProcessor = config.getProcessor().entrySet().stream()
                     .filter(e -> lowerMsg.contains(e.getKey().toLowerCase()))
                     .findFirst();
 
+            // Case 1: No matching processor — route to default invalid topic
             if (targetProcessor.isEmpty()) {
-                log.warn("No matching processor found for this XML");
-                return Mono.empty();
+                log.warn("No matching processor found for XML: routing to default invalid message topic");
+
+                String msgId = sfmsConsmrCommonUtility.getMsgId(xmlMessage);
+                String msgType = sfmsConsmrCommonUtility.getMsgType(xmlMessage);
+                String defaultTarget=  topicDetails.getDefaultInvalidMsgSwitch();
+
+                if (msgId == null || msgType ==null) {
+                    return kafkaUtils.publishToResponseTopic(xmlMessage, topicDetails.getDefaultInvalidMsgTopic(), msgId, "")
+                            .then(
+                                    sfmsConsumerRepository.saveDataInInvalidPayload(msgId, msgType, xmlMessage, defaultTarget, false)
+                                            .doOnSuccess(status ->
+                                                    log.info("Message saved in invalid_payload and sent to default switch {}", defaultTarget)
+                                            )
+                                            .doOnError(error ->
+                                                    log.error("Failed to save invalid payload for msgId {}: {}", msgId, error.getMessage(), error)
+                                            )
+                                            .then() // convert Mono<AuditStatus> → Mono<Void>
+                            );
+                }
             }
 
+            //  Case 2: Valid processor — publish to configured topic
             String target = targetProcessor.map(Map.Entry::getValue).orElse(null);
             String msgType = targetProcessor.get().getKey();
             String topic = config.getTopicFileType(target);
+            String msgId = sfmsConsmrCommonUtility.getMsgId(xmlMessage);
+            if (msgType == null) msgType = sfmsConsmrCommonUtility.getMsgType(xmlMessage);
 
-            ReqPayload reqPayload = setReqPayloadFields(xmlMessage, msgType, target);
+            reqPayload = setReqPayloadFields(xmlMessage, msgType, target);
             ObjectMapper mapper = new ObjectMapper();
             String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(reqPayload);
 
+            String batchId = reqPayload.getHeader() != null ? reqPayload.getHeader().getBatchId() : "";
+
+            log.info("msgId: {}, msgType: {}, reqPayload: {}", msgId, msgType, reqPayload);
+
+            // Update status after publishing
+            String finalMsgId = msgId;
             if (msgType.toLowerCase().contains("admi")) {
-                return admiErrorMessageAudit(xmlMessage, msgType, json)
-                        .flatMap(status -> {
-                            kafkaUtils.publishToResponseTopic(json, topic);
-                            return Mono.empty();
-                        });
+                return admiErrorMessageAudit(xmlMessage, msgType, msgId,target)
+                        .doOnSubscribe(sub -> log.info("Auditing ADMI message for msgId={}", finalMsgId))
+                        .then(kafkaUtils.publishToResponseTopic(json, topic, finalMsgId, batchId))
+                        .doOnSuccess(unused -> log.info(" Published ADMI message to topic={} for msgId={}", topic, finalMsgId))
+                        .then(sfmsConsumerRepository.updateStatusToSendToProcessorDynamic(msgId, batchId, msgType)
+                                .doOnNext(status -> log.info(" Updated status to SEND_TO_PROCESSOR for msgId={} status={}", finalMsgId, status)))
+                        .then();
             } else {
-                return mvtErrorMessageAudit(xmlMessage, msgType, json)
-                        .flatMap(status -> {
-                            kafkaUtils.publishToResponseTopic(json, topic);
-                            return Mono.empty();
-                        });
+
+                return mvtErrorMessageAudit(xmlMessage, msgType,msgId,target)
+                        .doOnSubscribe(sub -> log.info("Auditing MVT message for msgId={}", finalMsgId))
+                        .then(kafkaUtils.publishToResponseTopic(json, topic, finalMsgId, batchId))
+                        .doOnSuccess(unused -> log.info(" Published MVT message to topic={} for msgId={}", topic, finalMsgId))
+                        .then(sfmsConsumerRepository.updateStatusToSendToProcessorDynamic(msgId, batchId, msgType)
+                                .doOnNext(status -> log.info(" Updated status to SEND_TO_PROCESSOR for msgId={} status={}", finalMsgId, status)))
+                        .then();
             }
 
         } catch (JsonProcessingException e) {
-            log.error("Error generating JSON for error routing", e);
-            return Mono.error(e);
+            log.error("Error generating JSON", e);
+            String[] xml = {"", xmlMessage};
+            String errJson = buildJsonReq.handleExceptionRouting(xml, e,
+                    reqPayload.getHeader() != null ? reqPayload.getHeader().getMsgId() : "",
+                    reqPayload.getHeader() != null ? reqPayload.getHeader().getMsgType() : "",
+                    reqPayload.getHeader() != null ? reqPayload.getHeader().getBatchId() : "",
+                    reqPayload.getHeader() != null ? reqPayload.getHeader().getBatchCreDt() : "",
+                    JSON_PROCESSING_ERROR);
+
+            return kafkaUtils.publishToResponseTopic(errJson, topicDetails.getExceptionTopic(),
+                            reqPayload.getHeader() != null ? reqPayload.getHeader().getMsgId() : "", "")
+                    .then(Mono.error(e));
         }
     }
+
+
 
     /**
      * Save MVT error message and handle duplicates by incrementing version.
      */
-    public Mono<AuditStatus> mvtErrorMessageAudit(String errorReq, String msgType, String reqPayload) {
-        String target = config.getProcessorFileType(msgType.trim());
-        String batchId = extractBatchIdValue(errorReq);
+    public Mono<AuditStatus> mvtErrorMessageAudit(String errorReq, String msgType, String msgId, String target) {
+        String batchId = sfmsConsmrCommonUtility.extractBatchIdValue(errorReq);
         MsgEventTracker tracker = MsgEventTracker.builder()
-                .msgId(getMsgId(errorReq))
+                .msgId(msgId)
                 .orgnlReq(errorReq)
                 .msgType(msgType)
                 .flowType("INWARD")
@@ -115,10 +168,9 @@ public class ErrXmlRoutingService {
     /**
      * Save ADMI error message and handle duplicates by incrementing version.
      */
-    public Mono<AuditStatus> admiErrorMessageAudit(String errorReq, String msgType, String reqPayload) {
-        String target = config.getProcessorFileType(msgType.trim());
+    public Mono<AuditStatus> admiErrorMessageAudit(String errorReq, String msgType, String msgId,String target) {
         AdmiTracker admiTracker = AdmiTracker.builder()
-                .msgId(getMsgId(errorReq))
+                .msgId(msgId)
                 .msgType(msgType)
                 .target(target)
                 .invalidReq(true)
@@ -141,7 +193,7 @@ public class ErrXmlRoutingService {
     }
 
     private ReqPayload setReqPayloadFields(String xmlMessage, String msgType, String targetProcessor) {
-        String msgId = getMsgId(xmlMessage);
+        String msgId = sfmsConsmrCommonUtility.getMsgId(xmlMessage);
         Header header = Header.builder()
                 .msgId(msgId)
                 .msgType(msgType)
@@ -163,20 +215,7 @@ public class ErrXmlRoutingService {
                 .build();
     }
 
-    public String getMsgId(String xmlMessage) {
-        Pattern pattern = Pattern.compile("<\\s*BizMsgIdr\\s*>(.*?)<\\s*/\\s*BizMsgIdr\\s*>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-        Matcher matcher = pattern.matcher(xmlMessage);
-        if (matcher.find()) return matcher.group(1);
-        log.error("MsgId not found in XML");
-        return null;
-    }
 
-    public String extractBatchIdValue(String xml) {
-        Pattern pattern = Pattern.compile("<(Ustrd|AddtlInf)>(.*?)</\\1>", Pattern.DOTALL);
-        Matcher matcher = pattern.matcher(xml);
-        if (matcher.find()) return matcher.group(2);
-        return null;
-    }
 }
 
 //

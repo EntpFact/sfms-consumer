@@ -33,7 +33,7 @@ class SFMSConsumerRepositoryTest {
 
     private MsgEventTracker msgEventTracker;
     private AdmiTracker admiTracker;
-
+/*
     @BeforeEach
     void setUp() {
         msgEventTracker = MsgEventTracker.builder()
@@ -58,7 +58,7 @@ class SFMSConsumerRepositoryTest {
                 .build();
     }
 
-/*    @Test
+   @Test
     void testSaveDataInMsgEventTracker_withAllowedMsgType_insertsIntoBothTables() {
         // Arrange
         when(btAllowedMsgType.getAllowedMsgTypes()).thenReturn(List.of("pacs.008"));

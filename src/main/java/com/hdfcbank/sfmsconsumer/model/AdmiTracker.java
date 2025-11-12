@@ -23,6 +23,7 @@ public class AdmiTracker {
     private Integer replayCount;
     private String status;
     private Boolean invalidReq;
+    private Boolean bypassEnabled;
     private Date batchCreationDate;
     private LocalDateTime batchCreationTimestamp;
     private LocalDateTime createdTime;

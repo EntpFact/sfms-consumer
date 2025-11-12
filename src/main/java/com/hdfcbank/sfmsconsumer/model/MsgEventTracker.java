@@ -29,6 +29,7 @@ public class MsgEventTracker {
     private String intermediateReq;
     private Integer intermediateCount;
     private Boolean invalidReq;
+    private Boolean bypassEnabled;
     private Integer replayCount;
     private String status;
     private Date batchCreationDate;

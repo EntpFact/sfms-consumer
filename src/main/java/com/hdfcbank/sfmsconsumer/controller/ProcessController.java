@@ -69,7 +69,7 @@ public class ProcessController {
                     //  Bypass strategy check
                     if (bypassService.isBypassEnabled()) {
                         log.info("Bypass strategy enabled — routing message to configured switch/topic");
-                        bypassService.sendToBypassSwitch(xmlString[0] + xmlString[1]);
+                        bypassService.sendToBypassSwitch(xmlString);
                         return Mono.just(ResponseEntity.ok(
                                 new Response("SUCCESS", "Message routed via bypass.")));
                     }
@@ -92,6 +92,8 @@ public class ProcessController {
                                         return Mono.just(ResponseEntity.ok(
                                                 new Response("DUPLICATE", "Message already processed.")));
                                     case ERROR:
+                                        return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                                .body(new Response("ERROR", "Message processing failed.")));
                                     default:
                                         return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                                 .body(new Response("ERROR", "Message audit failed.")));
@@ -119,7 +121,7 @@ public class ProcessController {
                     //  Bypass strategy check
                     if (bypassService.isBypassEnabled()) {
                         log.info("Bypass strategy enabled — routing message to configured switch/topic");
-                        bypassService.sendToBypassSwitch(xmlString[0] + xmlString[1]);
+                        bypassService.sendToBypassSwitch(xmlString);
                         return Mono.just(ResponseEntity.ok(
                                 new Response("SUCCESS", "Message routed via bypass.")));
                     }
@@ -142,6 +144,8 @@ public class ProcessController {
                                         return Mono.just(ResponseEntity.ok(
                                                 new Response("DUPLICATE", "Message already processed.")));
                                     case ERROR:
+                                        return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                                .body(new Response("ERROR", "Message processing failed.")));
                                     default:
                                         return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                                 .body(new Response("ERROR", "Message audit failed.")));

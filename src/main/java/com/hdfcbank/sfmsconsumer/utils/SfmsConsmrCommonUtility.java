@@ -3,7 +3,6 @@ package com.hdfcbank.sfmsconsumer.utils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
-import org.w3c.dom.Node;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -16,6 +15,11 @@ import javax.xml.xpath.XPathFactory;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Component
@@ -40,6 +44,31 @@ public class SfmsConsmrCommonUtility {
         } catch (ParserConfigurationException | SAXException | IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public String getMsgId(String xmlMessage) {
+        Pattern pattern = Pattern.compile("<\\s*BizMsgIdr\\s*>(.*?)<\\s*/\\s*BizMsgIdr\\s*>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(xmlMessage);
+        if (matcher.find()) return matcher.group(1);
+        log.error("MsgId not found in XML");
+        return null;
+    }
+
+    public String extractBatchIdValue(String xml) {
+        Pattern pattern = Pattern.compile("<(Ustrd|AddtlInf)>(.*?)</\\1>", Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(xml);
+        if (matcher.find()) return matcher.group(2);
+        return "";
+    }
+
+
+
+    public String getMsgType(String xmlMessage) {
+        Pattern pattern = Pattern.compile("<\\s*MsgDefIdr\\s*>(.*?)<\\s*/\\s*MsgDefIdr\\s*>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+        Matcher matcher = pattern.matcher(xmlMessage);
+        if (matcher.find()) return matcher.group(1);
+        log.error("MsgDefIdr not found in XML");
+        return null;
     }
 
 }
