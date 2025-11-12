@@ -94,7 +94,7 @@ public class BypassService {
 
 
             log.info("Bypass enabled — sending message to switch '{}' (topic '{}')", switchName, topic);
-            kafkaUtils.publishToResponseTopic(topic, xml[0] + xml[1], msgId, batchId);
+            kafkaUtils.publishToKafkaTopic(topic, xml[0] + xml[1], msgId);
             Mono<AuditStatus> auditStatusMono = msgType.contains(ADMI)
                     ? handleAdmiTracker(xml, msgId, msgType, target, localDateTime, topic)
                     : handleMsgEventTracker(xml, msgId, msgType, target, batchId, localDateTime, topic);
@@ -217,7 +217,7 @@ public class BypassService {
             }
         }
 
-        kafkaUtils.publishToResponseTopic(xml[0] + xml[1], topic, msgId, batchId != null ? batchId : "");
+        kafkaUtils.publishToKafkaTopic(xml[0] + xml[1], topic, msgId);
 
 
         sfmsConsumerRepository.saveDataInInvalidPayload(msgId, msgType, xml[0] + xml[1], target, true)

@@ -66,7 +66,7 @@ public class ErrXmlRoutingService {
                 String defaultTarget=  topicDetails.getDefaultInvalidMsgSwitch();
 
                 if (msgId == null || msgType ==null) {
-                    return kafkaUtils.publishToResponseTopic(xmlMessage, topicDetails.getDefaultInvalidMsgTopic(), msgId, "")
+                    return kafkaUtils.publishToKafkaTopic(xmlMessage, topicDetails.getDefaultInvalidMsgTopic(), msgId)
                             .then(
                                     sfmsConsumerRepository.saveDataInInvalidPayload(msgId, msgType, xmlMessage, defaultTarget, false)
                                             .doOnSuccess(status ->
@@ -100,7 +100,7 @@ public class ErrXmlRoutingService {
             if (msgType.toLowerCase().contains("admi")) {
                 return admiErrorMessageAudit(xmlMessage, msgType, msgId,target)
                         .doOnSubscribe(sub -> log.info("Auditing ADMI message for msgId={}", finalMsgId))
-                        .then(kafkaUtils.publishToResponseTopic(json, topic, finalMsgId, batchId))
+                        .then(kafkaUtils.publishToKafkaTopic(json, topic, finalMsgId))
                         .doOnSuccess(unused -> log.info(" Published ADMI message to topic={} for msgId={}", topic, finalMsgId))
                         .then(sfmsConsumerRepository.updateStatusToSendToProcessorDynamic(msgId, batchId, msgType)
                                 .doOnNext(status -> log.info(" Updated status to SEND_TO_PROCESSOR for msgId={} status={}", finalMsgId, status)))
@@ -109,7 +109,7 @@ public class ErrXmlRoutingService {
 
                 return mvtErrorMessageAudit(xmlMessage, msgType,msgId,target)
                         .doOnSubscribe(sub -> log.info("Auditing MVT message for msgId={}", finalMsgId))
-                        .then(kafkaUtils.publishToResponseTopic(json, topic, finalMsgId, batchId))
+                        .then(kafkaUtils.publishToKafkaTopic(json, topic, finalMsgId))
                         .doOnSuccess(unused -> log.info(" Published MVT message to topic={} for msgId={}", topic, finalMsgId))
                         .then(sfmsConsumerRepository.updateStatusToSendToProcessorDynamic(msgId, batchId, msgType)
                                 .doOnNext(status -> log.info(" Updated status to SEND_TO_PROCESSOR for msgId={} status={}", finalMsgId, status)))
@@ -126,9 +126,8 @@ public class ErrXmlRoutingService {
                     reqPayload.getHeader() != null ? reqPayload.getHeader().getBatchCreDt() : "",
                     JSON_PROCESSING_ERROR);
 
-            return kafkaUtils.publishToResponseTopic(errJson, topicDetails.getExceptionTopic(),
-                            reqPayload.getHeader() != null ? reqPayload.getHeader().getMsgId() : "", "")
-                    .then(Mono.error(e));
+            return kafkaUtils.publishToKafkaTopic(errJson, topicDetails.getExceptionTopic(),
+                            reqPayload.getHeader() != null ? reqPayload.getHeader().getMsgId() : "");
         }
     }
 

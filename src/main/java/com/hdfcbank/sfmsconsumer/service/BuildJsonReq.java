@@ -95,7 +95,7 @@ public class BuildJsonReq {
             log.error("Error generating JSON ");
             log.error("Routing failed message to exception topic due to error: {}", e.getMessage());
             String errjson = handleExceptionRouting(xml, e, msgId, msgDefIdr, batchId, batchDateTime, JSON_PROCESSING_ERROR);
-            kafkaUtils.publishToResponseTopic(errjson, topicDetails.getExceptionTopic(), msgId, batchId);
+            kafkaUtils.publishToKafkaTopic(errjson, topicDetails.getExceptionTopic(), msgId);
         }
 
         return json;

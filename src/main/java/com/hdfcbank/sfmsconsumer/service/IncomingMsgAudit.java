@@ -84,7 +84,7 @@ public class IncomingMsgAudit {
                 log.error("Error during message audit: {}", e.getMessage(), e);
                 log.error("Routing failed message to exception topic due to error: {}", e.getMessage());
                 String errjson = buildJsonReq.handleExceptionRouting(xmlMessage, e, msgId, msgType, batchId, batchDateTime, DATABASE_ERROR);
-                kafkaUtils.publishToResponseTopic(errjson, topic.getExceptionTopic(), msgId,batchId);
+                kafkaUtils.publishToKafkaTopic(errjson, topic.getExceptionTopic(), msgId);
                 return Mono.just(AuditStatus.ERROR);
             }
         });
@@ -138,7 +138,7 @@ public class IncomingMsgAudit {
                     if (isDbDown) {
                         // Database down → publish original XML to negative ACK topic
                         log.error("Database DOWN detected for msgId {}: {}", msgId, errMsg);
-                        kafkaUtils.publishToResponseTopic(xmlMessage[0] + xmlMessage[1], target, msgId, null);
+                        kafkaUtils.publishToKafkaTopic(xmlMessage[0] + xmlMessage[1], target, msgId);
                         return Mono.just(AuditStatus.ERROR);
                     }
 
@@ -150,7 +150,7 @@ public class IncomingMsgAudit {
                             xmlMessage, ex, msgId, msgType, null,
                             batchDateTime != null ? batchDateTime.toString() : "", DATABASE_ERROR);
 
-                    kafkaUtils.publishToResponseTopic(errJson, topic.getExceptionTopic(), msgId, null);
+                    kafkaUtils.publishToKafkaTopic(errJson, topic.getExceptionTopic(), msgId);
                     return Mono.just(AuditStatus.ERROR);
                 });
     }
@@ -203,7 +203,7 @@ public class IncomingMsgAudit {
                     if (isDbDown) {
                         // Database down → send original XML to negative ACK topic
                         log.error("Database DOWN detected for msgId {}: {}", msgId, errMsg);
-                        kafkaUtils.publishToResponseTopic(xmlMessage[0] + xmlMessage[1], target, msgId,batchId != null ? batchId : "");
+                        kafkaUtils.publishToKafkaTopic(xmlMessage[0] + xmlMessage[1], target, msgId);
                         return Mono.just(AuditStatus.ERROR);
                     }
 
@@ -211,7 +211,7 @@ public class IncomingMsgAudit {
                     log.error("Routing failed message to exception topic due to error");
                     String errJson = buildJsonReq.handleExceptionRouting(
                             xmlMessage, ex, msgId, msgType, batchId, batchDateTime.toString(), DATABASE_ERROR);
-                    kafkaUtils.publishToResponseTopic(errJson, topic.getExceptionTopic(), msgId,batchId != null ? batchId : "");
+                    kafkaUtils.publishToKafkaTopic(errJson, topic.getExceptionTopic(), msgId);
 
                     return Mono.just(AuditStatus.ERROR);
                 });

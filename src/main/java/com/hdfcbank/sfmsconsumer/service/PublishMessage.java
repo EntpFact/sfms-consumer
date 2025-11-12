@@ -57,8 +57,8 @@ public class PublishMessage {
                 log.error("XML parsing failed: {}", e.getMessage(), e);
                 String errJson = buildJsonReq.handleExceptionRouting(
                         xml, e, msgId, msgType, batchId, batchDateTime, "XPATH_PARSING_ERROR");
-                return kafkaUtils.publishToResponseTopic(
-                        errJson, topicDetails.getExceptionTopic(), msgId, batchId
+                return kafkaUtils.publishToKafkaTopic(
+                        errJson, topicDetails.getExceptionTopic(), msgId
                 ).then();
             }
 
@@ -71,7 +71,7 @@ public class PublishMessage {
             final String finalBatchId = batchId;
             final String finalBatchDateTime = batchDateTime;
 
-            return kafkaUtils.publishToResponseTopic(jsonReq, topic, msgId, batchId)
+            return kafkaUtils.publishToKafkaTopic(jsonReq, topic, msgId)
                     .then(
                             // Chain repository update
                             sfmsConsumerRepository.updateStatusToSendToProcessorDynamic(msgId, batchId, msgType)
@@ -92,8 +92,8 @@ public class PublishMessage {
                         log.error("Error in sendRequest: {}", ex.getMessage(), ex);
                         String errJson = buildJsonReq.handleExceptionRouting(
                                 xml, ex, finalMsgId, finalMsgType, finalBatchId, finalBatchDateTime, "PROCESSING_ERROR");
-                        return kafkaUtils.publishToResponseTopic(
-                                errJson, topicDetails.getExceptionTopic(), finalMsgId, finalBatchId
+                        return kafkaUtils.publishToKafkaTopic(
+                                errJson, topicDetails.getExceptionTopic(), finalMsgId
                         ).then();
                     });
         });
