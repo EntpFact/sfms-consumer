@@ -1,5 +1,6 @@
 package com.hdfcbank.sfmsconsumer.kafkaproducer;
 
+import com.hdfcbank.messageconnect.config.PubSubOptions;
 import com.hdfcbank.messageconnect.dapr.producer.DaprProducer;
 import com.hdfcbank.sfmsconsumer.dao.SFMSConsumerRepository;
 import com.hdfcbank.sfmsconsumer.exception.SFMSConsumerException;
@@ -15,6 +16,7 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+
 @Slf4j
 @Service
 public class KafkaUtils {
@@ -27,6 +29,20 @@ public class KafkaUtils {
 
 
     public Mono<Void> publishToKafkaTopic(String message, String topic, String msgid) {
+
+        /*Map<String, String> metadata = new HashMap<>();
+        metadata.put("partitionKey", msgid);
+
+        var kafkaBinding = PubSubOptions.builder()
+                .requestData(message)
+                .topic(topic)
+                .pubsubName(Constants.KAFKA_RESPONSE_TOPIC_DAPR_BINDING)
+                .metadata(metadata)
+                .build();
+        return Mono.fromRunnable(() ->
+                        log.info("Mock publish success for msgId={} topic={}", msgid, topic)
+                )
+                .then();*/
         Map<String, String> metadata = new HashMap<>();
         metadata.put("partitionKey", msgid);
 

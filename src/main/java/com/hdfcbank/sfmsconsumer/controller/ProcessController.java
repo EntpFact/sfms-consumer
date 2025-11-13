@@ -166,6 +166,13 @@ public class ProcessController {
     private String[] validateXml(String request) {
         String xmlMsg = null;
         try {
+
+            if (bypassService.isBypassEnabled()) {
+                String[] xmlMessage = removeBOM(request);
+                xmlMessage[0] = xmlMessage[0].trim();
+                xmlMessage[1] = xmlMessage[1].trim();
+                return xmlMessage;
+            }
  /*           ObjectMapper objectMapper = new ObjectMapper();
             JsonNode rootNode = objectMapper.readTree(request);
 

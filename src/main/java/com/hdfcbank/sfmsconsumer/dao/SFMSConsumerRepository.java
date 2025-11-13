@@ -362,7 +362,7 @@ public class SFMSConsumerRepository {
         spec = bindNullable(spec, "msg_type", msgEventTracker.getMsgType(), String.class);
         spec = bindNullable(spec, "original_req", msgEventTracker.getOrgnlReq(), String.class);
         spec = bindNullable(spec, "invalid_msg", msgEventTracker.getInvalidReq(), Boolean.class);
-        spec = bindNullable(spec, "bypass_enabled", msgEventTracker.getInvalidReq(), Boolean.class);
+        spec = bindNullable(spec, "bypass_enabled", msgEventTracker.getBypassEnabled(), Boolean.class);
         spec = bindNullable(spec, "batch_creation_date", msgEventTracker.getBatchCreationDate(), Date.class);
         spec = bindNullable(spec, "batch_timestamp", msgEventTracker.getBatchCreationTimestamp(), LocalDateTime.class);
 
@@ -375,7 +375,7 @@ public class SFMSConsumerRepository {
 
         spec = spec.bind("created_time", timestamp)
                 .bind("modified_timestamp", timestamp)
-                .bind("version", 1.0);
+                .bind("version", 1);
 
         return spec.fetch()
                 .rowsUpdated()

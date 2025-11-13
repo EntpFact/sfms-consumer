@@ -56,19 +56,16 @@ public class ErrXmlRoutingService {
             Optional<Map.Entry<String, String>> targetProcessor = config.getProcessor().entrySet().stream()
                     .filter(e -> lowerMsg.contains(e.getKey().toLowerCase()))
                     .findFirst();
-
+            String msgId = sfmsConsmrCommonUtility.getMsgId(xmlMessage);
+            String messageType = sfmsConsmrCommonUtility.getMsgType(xmlMessage);
+            String defaultTarget=  topicDetails.getDefaultInvalidMsgSwitch();
             // Case 1: No matching processor — route to default invalid topic
-            if (targetProcessor.isEmpty()) {
+            if (targetProcessor.isEmpty() || (msgId == null || messageType ==null)) {
                 log.warn("No matching processor found for XML: routing to default invalid message topic");
 
-                String msgId = sfmsConsmrCommonUtility.getMsgId(xmlMessage);
-                String msgType = sfmsConsmrCommonUtility.getMsgType(xmlMessage);
-                String defaultTarget=  topicDetails.getDefaultInvalidMsgSwitch();
-
-                if (msgId == null || msgType ==null) {
                     return kafkaUtils.publishToKafkaTopic(xmlMessage, topicDetails.getDefaultInvalidMsgTopic(), msgId)
                             .then(
-                                    sfmsConsumerRepository.saveDataInInvalidPayload(msgId, msgType, xmlMessage, defaultTarget, false)
+                                    sfmsConsumerRepository.saveDataInInvalidPayload(msgId, messageType, xmlMessage, defaultTarget, false)
                                             .doOnSuccess(status ->
                                                     log.info("Message saved in invalid_payload and sent to default switch {}", defaultTarget)
                                             )
@@ -77,21 +74,20 @@ public class ErrXmlRoutingService {
                                             )
                                             .then() // convert Mono<AuditStatus> → Mono<Void>
                             );
-                }
+
             }
 
             //  Case 2: Valid processor — publish to configured topic
             String target = targetProcessor.map(Map.Entry::getValue).orElse(null);
             String msgType = targetProcessor.get().getKey();
             String topic = config.getTopicFileType(target);
-            String msgId = sfmsConsmrCommonUtility.getMsgId(xmlMessage);
             if (msgType == null) msgType = sfmsConsmrCommonUtility.getMsgType(xmlMessage);
 
             reqPayload = setReqPayloadFields(xmlMessage, msgType, target);
             ObjectMapper mapper = new ObjectMapper();
             String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(reqPayload);
 
-            String batchId = reqPayload.getHeader() != null ? reqPayload.getHeader().getBatchId() : "";
+            String batchId = sfmsConsmrCommonUtility.extractBatchIdValue(xmlMessage);
 
             log.info("msgId: {}, msgType: {}, reqPayload: {}", msgId, msgType, reqPayload);
 

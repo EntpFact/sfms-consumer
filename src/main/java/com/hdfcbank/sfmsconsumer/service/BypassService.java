@@ -45,7 +45,6 @@ public class BypassService {
     @Autowired
     private final SfmsConsmrCommonUtility sfmsConsmrCommonUtility;
 
-    private final TargetProcessorTopicConfig config;
 
     @Autowired
     private final BatchIdXmlFieldExtractor batchIdXmlFieldExtractor;
@@ -86,7 +85,7 @@ public class BypassService {
 
             msgId = sfmsConsmrCommonUtility.getValueByXPath(document, MSGID_XPATH);
             msgType = sfmsConsmrCommonUtility.getValueByXPath(document, MSGDEFIDR_XPATH);
-            target = config.getProcessorFileType(msgType);
+            target = bypassProperties.getDefaultSwitch();
             batchId = batchIdXmlFieldExtractor.extractFieldByFileType(xml[1]);
             String batchDateTime = sfmsConsmrCommonUtility.getValueByXPath(document, BATCH_CREDT_XPATH);
             Instant instant = Instant.parse(batchDateTime);
@@ -99,9 +98,16 @@ public class BypassService {
                     ? handleAdmiTracker(xml, msgId, msgType, target, localDateTime, topic)
                     : handleMsgEventTracker(xml, msgId, msgType, target, batchId, localDateTime, topic);
 
+            auditStatusMono.subscribe(status -> {
+                log.info("Insert result: {}", status);
+            }, error -> {
+                log.error("Error in insert", error);
+            });
 
         } catch (Exception e) {
-            saveInvalidByPassMsgAndSendToKafka(xml, msgId, topic, msgType, target, batchId);
+
+            saveInvalidByPassMsgAndSendToKafka(xml, msgId, topic, msgType, target,null);
+
         }
 
     }
@@ -211,17 +217,23 @@ public class BypassService {
         if (msgId == null || msgId.isBlank()) {
             // Try extracting from concatenated XML parts
             messageId = sfmsConsmrCommonUtility.getMsgId(xml[0] + xml[1]);
-
+            msgId = messageId;
             if (messageId == null || messageId.isBlank()) {
                 log.warn("MsgId is Null");
             }
         }
+        if (target==null)
+            target=bypassProperties.getDefaultSwitch();
+
+        if(msgType==null)
+            msgType= sfmsConsmrCommonUtility.getMsgType(xml[0]+xml[1]);
 
         kafkaUtils.publishToKafkaTopic(xml[0] + xml[1], topic, msgId);
 
 
+        String finalMsgId = msgId;
         sfmsConsumerRepository.saveDataInInvalidPayload(msgId, msgType, xml[0] + xml[1], target, true)
-                .subscribe(status -> log.info("Bypass record saved for msgId {}: {}", msgId, status),
-                        error -> log.error("Failed to save bypass payload for msgId {}: {}", msgId, error.getMessage(), error));
+                .subscribe(status -> log.info("Bypass record saved for msgId {}: {}", finalMsgId, status),
+                        error -> log.error("Failed to save bypass payload for msgId {}: {}", finalMsgId, error.getMessage(), error));
     }
 }
